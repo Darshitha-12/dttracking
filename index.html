@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Darshitha's Study — Live</title>
+<meta name="theme-color" content="#1D9E75">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});}</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1D9E75;--green-dark:#0F6E56;
+  --purple:#7F77DD;--amber:#EF9F27;--blue:#378ADD;--coral:#D85A30;
+  --bg:#0b0f1a;--bg2:#111622;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.13);
+  --text:#f0f0f0;--muted:rgba(255,255,255,.45);--hint:rgba(255,255,255,.22);
+  --radius:14px;--radius-sm:9px;
+}
+html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text)}
+
+.bg-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);opacity:.15}
+.orb1{width:600px;height:600px;background:#1D9E75;top:-200px;right:-150px;animation:d1 14s ease-in-out infinite alternate}
+.orb2{width:500px;height:500px;background:#7F77DD;bottom:-180px;left:-120px;animation:d2 17s ease-in-out infinite alternate}
+@keyframes d1{to{transform:translate(-60px,60px)}}
+@keyframes d2{to{transform:translate(60px,-60px)}}
+
+.wrap{position:relative;z-index:1;max-width:680px;margin:0 auto;padding:1.5rem 1rem 3rem}
+
+/* HEADER */
+.pub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem}
+.pub-logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--green),var(--purple));border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pub-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+.pub-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.live-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:500}
+.live-on{background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:#5DCAA5}
+.live-off{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lpulse .9s ease infinite alternate}
+@keyframes lpulse{to{opacity:.2}}
+
+/* COUNTDOWN */
+.cd-card{background:linear-gradient(135deg,rgba(29,158,117,.1),rgba(127,119,221,.07));border:1px solid rgba(29,158,117,.18);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+.cd-label{font-size:11px;color:var(--muted);letter-spacing:.06em}
+.cd-blocks{display:flex;gap:5px;flex-wrap:wrap}
+.cd-blk{text-align:center;min-width:44px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:5px 7px}
+.cd-v{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--green);line-height:1}
+.cd-u{font-size:9px;color:var(--hint);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.cd-sep{color:var(--hint);font-size:14px;padding:0 1px;align-self:center}
+
+/* CURRENTLY STUDYING HERO */
+.hero-card{border-radius:var(--radius);padding:1.5rem 1.5rem 1.25rem;margin-bottom:1rem;position:relative;overflow:hidden;border:1px solid var(--border2)}
+.hero-card.studying{background:linear-gradient(135deg,rgba(29,158,117,.18) 0%,rgba(29,158,117,.06) 100%);border-color:rgba(29,158,117,.3)}
+.hero-card.idle{background:var(--bg2);border-color:var(--border)}
+.hero-glow{position:absolute;width:200px;height:200px;border-radius:50%;background:var(--green);filter:blur(70px);opacity:.1;top:-60px;right:-60px;pointer-events:none}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.1rem}
+.hero-status-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.hero-subject{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:var(--text);line-height:1.1}
+.hero-category{font-size:13px;color:var(--muted);margin-top:5px}
+.hero-timer{font-family:'Syne',sans-serif;font-size:42px;font-weight:800;color:var(--green);letter-spacing:.04em;font-variant-numeric:tabular-nums;text-align:right}
+.hero-timer-label{font-size:10px;color:var(--muted);text-align:right;margin-top:3px;text-transform:uppercase;letter-spacing:.06em}
+.hero-idle-msg{font-size:16px;color:var(--muted);text-align:center;padding:1rem 0}
+.hero-idle-icon{font-size:36px;margin-bottom:.5rem}
+
+/* TODAY STATS */
+.today-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.today-stat{border-radius:var(--radius-sm);padding:.85rem 1rem}
+.ts-0{background:linear-gradient(135deg,rgba(29,158,117,.18),rgba(29,158,117,.05));border:1px solid rgba(29,158,117,.15)}
+.ts-1{background:linear-gradient(135deg,rgba(127,119,221,.18),rgba(127,119,221,.05));border:1px solid rgba(127,119,221,.15)}
+.ts-2{background:linear-gradient(135deg,rgba(239,159,39,.18),rgba(239,159,39,.05));border:1px solid rgba(239,159,39,.15)}
+.ts-label{font-size:10px;color:var(--hint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ts-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--text)}
+
+/* DAILY TARGET */
+.target-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem}
+.target-card.complete{border-color:rgba(29,158,117,.35);background:rgba(29,158,117,.06)}
+.target-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem}
+.target-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.target-pct{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--green)}
+.target-bar-bg{background:rgba(255,255,255,.07);border-radius:99px;height:9px;overflow:hidden;margin-bottom:.45rem}
+.target-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green-dark,#0F6E56),var(--green),#5DCAA5);transition:width .8s cubic-bezier(.34,1.56,.64,1)}
+.target-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--hint)}
+.goal-badge{display:inline-block;font-size:10px;padding:2px 9px;border-radius:20px;font-weight:500}
+.goal-done{background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.25);color:#5DCAA5}
+.goal-pend{background:rgba(239,159,39,.1);border:1px solid rgba(239,159,39,.2);color:var(--amber)}
+
+/* SUBJECT BREAKDOWN */
+.section-title{font-size:11px;color:var(--hint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem}
+.subjects-list{display:flex;flex-direction:column;gap:7px;margin-bottom:1rem}
+.subj-row{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem 1rem;display:flex;align-items:center;gap:10px}
+.subj-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.subj-name{font-size:13px;font-weight:500;flex:1}
+.subj-bar-wrap{flex:2;background:rgba(255,255,255,.06);border-radius:99px;height:6px;overflow:hidden}
+.subj-bar{height:100%;border-radius:99px;transition:width .6s ease}
+.subj-time{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+.subj-sessions{font-size:10px;color:var(--hint);white-space:nowrap;margin-left:4px}
+
+/* RECENT SESSIONS */
+.sessions-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem}
+.sess-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
+.sess-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;color:#fff;white-space:nowrap;font-weight:500;flex-shrink:0}
+.sess-subj{font-size:12px;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-meta{font-size:11px;color:var(--hint);white-space:nowrap}
+.sess-dur{font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+.empty{font-size:13px;color:var(--hint);padding:1rem 0;text-align:center}
+
+/* FILTER CHIPS */
+.pub-chip{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:4px 11px;font-size:11px;color:rgba(255,255,255,.4);font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap}
+.pub-chip:hover{background:rgba(255,255,255,.09);color:rgba(255,255,255,.7)}
+.pub-chip.active{background:linear-gradient(135deg,rgba(29,158,117,.2),rgba(29,158,117,.06));border-color:rgba(29,158,117,.35);color:#5DCAA5;font-weight:500}
+
+/* FOOTER */
+.pub-footer{text-align:center;font-size:11px;color:var(--hint);margin-top:2rem}
+.auto-refresh{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--hint);margin-top:.4rem}
+.spin{animation:spin 2s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LEADERBOARD */
+.leader-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem;overflow:hidden}
+.leader-row{display:flex;align-items:center;gap:10px;padding:6px 0;position:relative}
+.leader-row:not(:first-child){border-top:1px solid rgba(255,255,255,.05)}
+.leader-rank{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;width:22px;text-align:center;flex-shrink:0}
+.leader-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.leader-name{font-size:13px;font-weight:500;color:#f0f0f0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leader-time{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;white-space:nowrap}
+.leader-bar-wrap{position:absolute;bottom:0;left:0;right:0;height:2px;background:rgba(255,255,255,.04)}
+.leader-bar-fill{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.34,1.56,.64,1)}
+.rank-1 .leader-time{color:#FFD700}
+.rank-2 .leader-time{color:#C0C0C0}
+.rank-3 .leader-time{color:#CD7F32}
+.crown-anim{display:inline-block;animation:crownBounce 1.5s ease-in-out infinite alternate}
+@keyframes crownBounce{to{transform:translateY(-4px) rotate(5deg)}}
+.bar-shimmer{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c1));background-size:200% 100%;animation:shimmer 2s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.new-leader{animation:popIn .5s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+
+@media(max-width:500px){
+  .cd-blk{min-width:36px}.cd-v{font-size:15px}
+}
+</style>
+</head>
+<body>
+<div class="bg-orbs"><div class="orb orb1"></div><div class="orb orb2"></div></div>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="pub-header">
+    <div class="pub-logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div>
+        <div class="pub-title">A/L Study Group</div>
+        <div class="pub-sub">Live public view · 2026 A/L</div>
+      </div>
+    </div>
+    <div class="live-badge live-off" id="group-badge">
+      <span class="live-dot" id="group-dot" style="background:var(--hint);animation:none"></span>
+      <span id="group-label">0 studying</span>
+    </div>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div class="cd-card">
+    <div>
+      <div class="cd-label">🎯 A/L Exam countdown</div>
+      <div style="font-size:11px;color:var(--hint);margin-top:2px">August 10, 2026</div>
+    </div>
+    <div class="cd-blocks">
+      <div class="cd-blk"><div class="cd-v" id="cd-mo">—</div><div class="cd-u">mo</div></div>
+      <span class="cd-sep">·</span>
+      <div class="cd-blk"><div class="cd-v" id="cd-wk">—</div><div class="cd-u">wk</div></div>
+      <span class="cd-sep">·</span>
+      <div class="cd-blk"><div class="cd-v" id="cd-dy">—</div><div class="cd-u">days</div></div>
+      <span class="cd-sep">·</span>
+      <div class="cd-blk"><div class="cd-v" id="cd-hr">—</div><div class="cd-u">hrs</div></div>
+      <span class="cd-sep">·</span>
+      <div class="cd-blk"><div class="cd-v" id="cd-mn">—</div><div class="cd-u">min</div></div>
+      <span class="cd-sep">·</span>
+      <div class="cd-blk"><div class="cd-v" id="cd-sc">—</div><div class="cd-u">sec</div></div>
+    </div>
+  </div>
+
+  <!-- ALL USERS LIVE -->
+  <div class="section-title">👥 Who's studying now</div>
+  <div id="all-users-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:1rem">
+    <div class="empty">Loading...</div>
+  </div>
+
+  <!-- TODAY'S LEADERBOARD -->
+  <div class="section-title">🏆 Today's top studier</div>
+  <div id="today-leader" style="margin-bottom:1rem">
+    <div class="empty">No study data today yet.</div>
+  </div>
+
+  <!-- SUBJECT BREAKDOWN + SESSIONS — filterable -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem">
+    <div class="section-title" style="margin-bottom:0" id="stats-section-title">Study stats — Today</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="pub-chip active" onclick="setPubFilter('today',this)">Today</button>
+      <button class="pub-chip" onclick="setPubFilter('yesterday',this)">Yesterday</button>
+      <button class="pub-chip" onclick="setPubFilter('week',this)">This week</button>
+      <button class="pub-chip" onclick="setPubFilter('month',this)">This month</button>
+      <button class="pub-chip" onclick="setPubFilter('all',this)">All time</button>
+    </div>
+  </div>
+
+  <!-- PER USER CARDS -->
+  <div id="user-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:1rem">
+    <div class="empty">Loading...</div>
+  </div>
+
+  <!-- SUBJECT BREAKDOWN -->
+  <div class="section-title">Subject breakdown</div>
+  <div class="subjects-list" id="subj-list">
+    <div class="empty">No study data yet.</div>
+  </div>
+
+  <!-- SESSIONS -->
+  <div class="section-title">Sessions</div>
+  <div class="sessions-card">
+    <div id="sess-list"><div class="empty">No sessions yet.</div></div>
+  </div>
+
+  <!-- COMMENTS -->
+  <div class="section-title" style="margin-top:1rem">💬 Leave a message</div>
+
+<!-- USER DETAIL MODAL -->
+<div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:flex-end;justify-content:center;padding:0">
+  <div id="user-modal-inner" style="background:#111622;border:1px solid rgba(255,255,255,.12);border-radius:22px 22px 0 0;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;padding:1.5rem;animation:slideUp2 .25s cubic-bezier(.16,1,.3,1)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="m-avatar" style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0"></div>
+        <div>
+          <div id="m-name" style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#f0f0f0"></div>
+          <div id="m-status" style="font-size:11px;color:rgba(255,255,255,.4)"></div>
+        </div>
+      </div>
+      <button onclick="closeUserModal()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:50%;width:30px;height:30px;color:rgba(255,255,255,.5);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <!-- Daily target bar -->
+    <div id="m-target" style="background:rgba(29,158,117,.08);border:1px solid rgba(29,158,117,.15);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
+        <span style="font-size:11px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em">Daily target — 10h</span>
+        <span id="m-target-pct" style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#1D9E75">0%</span>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border-radius:99px;height:8px;overflow:hidden;margin-bottom:.4rem">
+        <div id="m-target-bar" style="height:100%;border-radius:99px;background:linear-gradient(90deg,#0F6E56,#1D9E75,#5DCAA5);transition:width .8s cubic-bezier(.34,1.56,.64,1);width:0%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.3)">
+        <span id="m-target-done">0m done</span>
+        <span id="m-target-left">10h left</span>
+      </div>
+    </div>
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem">
+      <div style="background:rgba(29,158,117,.1);border:1px solid rgba(29,158,117,.12);border-radius:9px;padding:.65rem .75rem">
+        <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Total</div>
+        <div id="m-total" style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#f0f0f0">0m</div>
+      </div>
+      <div style="background:rgba(127,119,221,.1);border:1px solid rgba(127,119,221,.12);border-radius:9px;padding:.65rem .75rem">
+        <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Sessions</div>
+        <div id="m-count" style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#f0f0f0">0</div>
+      </div>
+      <div style="background:rgba(239,159,39,.1);border:1px solid rgba(239,159,39,.12);border-radius:9px;padding:.65rem .75rem">
+        <div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Longest</div>
+        <div id="m-longest" style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#f0f0f0">0m</div>
+      </div>
+    </div>
+    <!-- Subject breakdown for this user -->
+    <div style="font-size:11px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">By subject</div>
+    <div id="m-subjects" style="display:flex;flex-direction:column;gap:6px;margin-bottom:1rem"></div>
+    <!-- Sessions list -->
+    <div style="font-size:11px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">Sessions</div>
+    <div id="m-sessions"></div>
+  </div>
+</div>
+  <div class="sessions-card" style="margin-bottom:.5rem">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input id="c-name" placeholder="Your name" style="flex:1;min-width:90px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 11px;font-size:13px;color:#f0f0f0;font-family:inherit;outline:none">
+      <input id="c-msg" placeholder="Write something..." style="flex:2;min-width:120px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 11px;font-size:13px;color:#f0f0f0;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter')postComment()">
+      <button onclick="postComment()" style="background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;border-radius:8px;padding:9px 14px;color:#fff;font-size:13px;cursor:pointer;white-space:nowrap;font-family:inherit">Send</button>
+    </div>
+    <div id="comments-list"><div class="empty">No messages yet — be the first!</div></div>
+  </div>
+
+  <!-- EDIT MODAL -->
+  <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;align-items:flex-end;justify-content:center">
+    <div style="background:#161c2e;border:1px solid rgba(255,255,255,.12);border-radius:20px 20px 0 0;padding:1.5rem;width:100%;max-width:480px;animation:slideUp2 .2s cubic-bezier(.16,1,.3,1)">
+      <div style="font-size:15px;font-weight:600;font-family:'Syne',sans-serif;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">Edit message <button onclick="closeEdit()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:20px;cursor:pointer">✕</button></div>
+      <input id="edit-input" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.13);border-radius:9px;padding:11px 13px;font-size:14px;color:#f0f0f0;font-family:inherit;outline:none;margin-bottom:1rem" onkeydown="if(event.key==='Enter')saveEdit()">
+      <div style="display:flex;gap:8px">
+        <button onclick="closeEdit()" style="flex:1;padding:11px;background:rgba(255,255,255,.08);border:none;border-radius:9px;color:#f0f0f0;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+        <button onclick="saveEdit()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;border-radius:9px;color:#fff;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pub-footer">
+    Public view — read only · Live via Firebase
+    <div class="auto-refresh"><span class="spin">↻</span> Real-time</div>
+  </div>
+</div>
+
+<script>
+var EXAM=new Date('2026-08-10T00:00:00');
+var DAILY_TARGET=36000;
+var SUBJ_COLORS={'Biology':'#1D9E75','Chemistry':'#378ADD','Physics':'#7F77DD','Combined Maths':'#D85A30','ICT':'#EF9F27','Other':'#5F5E5A'};
+var CAT_COLORS={'Study':'#1D9E75','Revision':'#7F77DD','Practice':'#EF9F27','Reading':'#378ADD'};
+
+// ── FIREBASE ──
+const firebaseConfig={
+  apiKey:"AIzaSyDsx794FrYhkMcP__XVVp1hyhiQMEzBJDA",
+  authDomain:"dtal-9f7f8.firebaseapp.com",
+  databaseURL:"https://dtal-9f7f8-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"dtal-9f7f8",
+  storageBucket:"dtal-9f7f8.firebasestorage.app",
+  messagingSenderId:"231792061726",
+  appId:"1:231792061726:web:4a6b6bb92724dc9634ad0f"
+};
+firebase.initializeApp(firebaseConfig);
+var db=firebase.database();
+
+function todayKey(){return new Date().toISOString().slice(0,10)}
+function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return[h,m,sc].map(x=>String(x).padStart(2,'0')).join(':')}
+function fmtSec(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m+'m'}
+
+// ── SERVER TIME OFFSET ──
+var serverTimeOffset=0;
+db.ref('.info/serverTimeOffset').on('value',snap=>{serverTimeOffset=snap.val()||0;});
+function serverNow(){return Date.now()+serverTimeOffset;}
+
+// ── MULTI-USER LIVE ──
+var _allUsers={};  // userId → {live, profile, sessions}
+var _liveTimers={};// userId → intervalId
+
+db.ref('users').on('value',snap=>{
+  var data=snap.val()||{};
+  _allUsers={};
+  Object.entries(data).forEach(([uid,udata])=>{
+    _allUsers[uid]={
+      live:udata.live||{running:false},
+      profile:udata.profile||{name:'Unknown'},
+      sessions:udata.sessions?Object.values(udata.sessions):[]
+    };
+  });
+  renderAllUsers();
+  render();
+  // Start/restart live stats ticker
+  startLiveStatsTicker();
+});
+
+// ── LIVE STATS TICKER ──
+// Updates leaderboard + user cards every second when someone is running
+var _liveStatsInt=null;
+function startLiveStatsTicker(){
+  clearInterval(_liveStatsInt);
+  var hasRunning=Object.values(_allUsers).some(u=>u.live&&u.live.running);
+  if(!hasRunning)return;
+  _liveStatsInt=setInterval(()=>{
+    renderLiveStats();
+  },1000);
+}
+
+function getLiveElapsedForUser(uid){
+  var u=_allUsers[uid];
+  if(!u||!u.live)return 0;
+  var live=u.live;
+  if(live.running&&live.startedAt){
+    return Math.max(0,Math.floor((serverNow()-live.startedAt)/1000)-(live.pausedAccum||0));
+  }
+  if(live.paused)return live.frozenElapsed||0;
+  return 0;
+}
+
+// Only update leaderboard + user stat cards (not full re-render)
+function renderLiveStats(){
+  var today=todayKey();
+  var DAILY_TARGET=36000;
+
+  // Build today secs per user including live elapsed
+  var userTodaySecs={};
+  Object.entries(_allUsers).forEach(([uid,u])=>{
+    var savedSecs=(u.sessions||[]).filter(s=>s.date===today).reduce((a,s)=>a+s.duration,0);
+    var liveSecs=getLiveElapsedForUser(uid);
+    userTodaySecs[uid]={
+      name:u.profile.name||'Unknown',
+      secs:savedSecs+liveSecs,
+      savedSecs,
+      liveSecs
+    };
+  });
+
+  // ── UPDATE LEADERBOARD ──
+  var leaderEl=document.getElementById('today-leader');
+  if(!leaderEl)return;
+  var todayRanked=Object.entries(userTodaySecs)
+    .filter(([,v])=>v.secs>0)
+    .sort((a,b)=>b[1].secs-a[1].secs);
+
+  if(todayRanked.length){
+    var maxSecs=todayRanked[0][1].secs;
+    var rankEmojis=['🥇','🥈','🥉'];
+    var barColors=[['#FFD700','#FFA500'],['#C0C0C0','#A0A0A0'],['#CD7F32','#A05A20']];
+    var leaderChanged=_prevLeader&&_prevLeader!==todayRanked[0][0];
+    _prevLeader=todayRanked[0][0];
+    leaderEl.innerHTML=`<div class="leader-card">
+      ${todayRanked.slice(0,5).map(([uid,v],i)=>{
+        var pct=Math.round(v.secs/maxSecs*100);
+        var rankLabel=i<3?rankEmojis[i]:`<span style="color:rgba(255,255,255,.3)">${i+1}</span>`;
+        var col=i<3?barColors[i]:['#5F5E5A','#3A3939'];
+        var avatarBg=i===0?'linear-gradient(135deg,#FFD700,#FFA500)':i===1?'linear-gradient(135deg,#9E9E9E,#757575)':i===2?'linear-gradient(135deg,#CD7F32,#8B5A1F)':'linear-gradient(135deg,#444,#333)';
+        var initials=v.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+        var isLive=_allUsers[uid]&&_allUsers[uid].live&&_allUsers[uid].live.running;
+        var liveDot=isLive?`<span style="width:6px;height:6px;border-radius:50%;background:#1D9E75;display:inline-block;margin-left:4px;animation:lpulse .8s infinite alternate"></span>`:'';
+        return`<div class="leader-row rank-${i+1} ${leaderChanged&&i===0?'new-leader':''}">
+          <span class="leader-rank">${rankLabel}</span>
+          <div class="leader-avatar" style="background:${avatarBg}">${initials}</div>
+          <span class="leader-name">${escHtml(v.name)}${liveDot}${i===0&&todayRanked.length>1?'<span class="crown-anim" style="font-size:11px;margin-left:3px">👑</span>':''}</span>
+          <span class="leader-time" style="color:${i<3?col[0]:'rgba(255,255,255,.5)'}">${fmtSec(v.secs)}</span>
+          <div class="leader-bar-wrap"><div class="leader-bar-fill bar-shimmer" style="width:${pct}%;--c1:${i<3?col[0]:'#555'};--c2:${i<3?col[1]:'#444'}"></div></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // ── UPDATE USER STAT CARDS (just secs + target bar) ──
+  Object.entries(userTodaySecs).forEach(([uid,v])=>{
+    var safeId='ucard_total_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+    var safeTbar='ucard_tbar_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+    var safeTpct='ucard_tpct_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+    var totalEl=document.getElementById(safeId);
+    var tbarEl=document.getElementById(safeTbar);
+    var tpctEl=document.getElementById(safeTpct);
+    var tpct=Math.min(100,Math.round(v.secs/DAILY_TARGET*100));
+    if(totalEl)totalEl.textContent=fmtSec(v.secs);
+    if(tbarEl)tbarEl.style.width=tpct+'%';
+    if(tpctEl)tpctEl.textContent=tpct+'%';
+  });
+}
+
+function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return[h,m,sc].map(x=>String(x).padStart(2,'0')).join(':')}
+
+function renderAllUsers(){
+  var users=Object.entries(_allUsers);
+
+  // Update group badge
+  var activeCount=users.filter(([uid,u])=>u.live&&u.live.running).length;
+  var gb=document.getElementById('group-badge');
+  var gd=document.getElementById('group-dot');
+  var gl=document.getElementById('group-label');
+  if(gb){
+    if(activeCount>0){
+      gb.className='live-badge live-on';gd.style.cssText='';
+      gl.textContent=activeCount+' studying now';
+    } else {
+      gb.className='live-badge live-off';gd.style.cssText='background:var(--hint);animation:none';
+      gl.textContent='0 studying';
+    }
+  }
+
+  var container=document.getElementById('all-users-grid');
+  if(!container)return;
+  if(!users.length){container.innerHTML='<div class="empty">No one is studying yet.</div>';return;}
+
+  // Clear old timers
+  Object.values(_liveTimers).forEach(clearInterval);
+  _liveTimers={};
+
+  container.innerHTML=users.map(([uid,u])=>{
+    var live=u.live||{};
+    var name=u.profile.name||'Unknown';
+    var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    var isRunning=!!live.running;
+    var isPaused=!!live.paused;
+    var col=stringColor(name);
+    // Safe DOM id — strip non-alphanumeric
+    var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+
+    var statusBadge=isRunning
+      ?`<span style="background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:#5DCAA5;font-size:10px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#1D9E75;animation:lpulse .8s infinite alternate"></span>Live</span>`
+      :isPaused
+      ?`<span style="background:rgba(239,159,39,.1);border:1px solid rgba(239,159,39,.25);color:#EF9F27;font-size:10px;padding:2px 8px;border-radius:20px">⏸ Paused</span>`
+      :`<span style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.3);font-size:10px;padding:2px 8px;border-radius:20px">Offline</span>`;
+
+    var subjectLine=isRunning||isPaused
+      ?`<div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:3px">${live.subject||''}${live.category?' · '+live.category:''}</div>`
+      :'';
+
+    // Compute initial timer value correctly
+    var initTimer='--:--:--';
+    if(isRunning&&live.startedAt){
+      var el=Math.floor((serverNow()-live.startedAt)/1000)-(live.pausedAccum||0);
+      initTimer=fmt(Math.max(0,el));
+    } else if(isPaused){
+      initTimer=fmt(live.frozenElapsed||0);
+    }
+
+    return`<div style="background:var(--bg2);border:1px solid ${isRunning?'rgba(29,158,117,.25)':isPaused?'rgba(239,159,39,.2)':'var(--border)'};border-radius:12px;padding:.85rem 1rem">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</div>
+          ${statusBadge}
+        </div>
+      </div>
+      ${subjectLine}
+      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:${isRunning?'#1D9E75':isPaused?'#EF9F27':'rgba(255,255,255,.15)'};letter-spacing:.04em;margin-top:.4rem" id="${safeId}">${initTimer}</div>
+    </div>`;
+  }).join('');
+
+  // Start live timers for running users — after DOM rendered
+  setTimeout(()=>{
+    users.forEach(([uid,u])=>{
+      var live=u.live||{};
+      if(live.running&&live.startedAt){
+        var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+        var pa=live.pausedAccum||0;
+        _liveTimers[uid]=setInterval(()=>{
+          var el=Math.floor((serverNow()-live.startedAt)/1000)-pa;
+          var el2=document.getElementById(safeId);
+          if(el2)el2.textContent=fmt(Math.max(0,el));
+        },500);
+      }
+    });
+  },50);
+}
+
+// Listen sessions in real-time (all users combined for stats)
+var _prevLeader=null;
+var _pubFilter='today';
+
+function setPubFilter(f,el){
+  _pubFilter=f;
+  document.querySelectorAll('.pub-chip').forEach(c=>c.classList.remove('active'));
+  if(el)el.classList.add('active');
+  var labels={today:'Today',yesterday:'Yesterday',week:'This week',month:'This month',all:'All time'};
+  var titleEl=document.getElementById('stats-section-title');
+  if(titleEl)titleEl.textContent='Study stats — '+(labels[f]||f);
+  render();
+}
+
+function filterByPeriod(sessions){
+  var now=new Date(),today=todayKey();
+  var yest=new Date(now);yest.setDate(yest.getDate()-1);
+  var yKey=yest.toISOString().slice(0,10);
+  var wStart=new Date(now);wStart.setDate(now.getDate()-((now.getDay()+6)%7));wStart.setHours(0,0,0,0);
+  var wKey=wStart.toISOString().slice(0,10);
+  var mKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';
+  switch(_pubFilter){
+    case 'today':    return sessions.filter(s=>s.date===today);
+    case 'yesterday':return sessions.filter(s=>s.date===yKey);
+    case 'week':     return sessions.filter(s=>s.date>=wKey&&s.date<=today);
+    case 'month':    return sessions.filter(s=>s.date>=mKey&&s.date<=today);
+    default:         return sessions;
+  }
+}
+
+function render(){
+  var today=todayKey();
+  var allFiltered=[];
+  var userFiltered={};
+  var DAILY_TARGET=36000;
+
+  Object.entries(_allUsers).forEach(([uid,u])=>{
+    var name=u.profile.name||'Unknown';
+    var filtered=filterByPeriod(u.sessions||[]);
+    var secs=filtered.reduce((a,s)=>a+s.duration,0);
+    userFiltered[uid]={name,secs,filtered,sessions:u.sessions||[]};
+    allFiltered.push(...filtered);
+  });
+
+  // Leaderboard is handled by renderLiveStats() — just trigger it
+  renderLiveStats();
+
+  // ── PER USER STATS CARDS (filtered period) ──
+  var DAILY_TARGET=36000;
+  var userGrid=document.getElementById('user-stats-grid');
+  var userEntries=Object.entries(userFiltered).sort((a,b)=>b[1].secs-a[1].secs);
+  if(!userEntries.length){
+    userGrid.innerHTML='<div class="empty">No data.</div>';
+  } else {
+    var maxUserSecs=userEntries[0][1].secs||1;
+    userGrid.innerHTML=userEntries.map(([uid,u])=>{
+      var initials=u.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      var col=stringColor(u.name);
+      var isLive=_allUsers[uid]&&_allUsers[uid].live&&_allUsers[uid].live.running;
+      var sessions=u.filtered;
+      var count=sessions.length;
+      var longest=count?Math.max(...sessions.map(s=>s.duration)):0;
+      var pct=Math.round(u.secs/maxUserSecs*100);
+      // Daily target (today only)
+      var todaySecs=(u.sessions||[]).filter(s=>s.date===today).reduce((a,s)=>a+s.duration,0);
+      var targetPct=Math.min(100,Math.round(todaySecs/DAILY_TARGET*100));
+      var targetDone=targetPct>=100;
+      var uSubj={};
+      sessions.forEach(s=>{uSubj[s.subject]=(uSubj[s.subject]||0)+s.duration;});
+      var topSubj=Object.entries(uSubj).sort((a,b)=>b[1]-a[1])[0];
+      return`<div onclick="openUserModal('${uid}')" style="background:var(--bg2);border:1px solid ${isLive?'rgba(29,158,117,.3)':targetDone?'rgba(29,158,117,.15)':'rgba(255,255,255,.07)'};border-radius:12px;padding:.9rem 1rem;cursor:pointer;transition:border-color .15s,transform .1s;animation:slideUp .4s ease" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${initials}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(u.name)}</div>
+            ${isLive?`<span style="font-size:10px;color:#5DCAA5;display:flex;align-items:center;gap:3px"><span style="width:5px;height:5px;border-radius:50%;background:#1D9E75;animation:lpulse .8s infinite alternate"></span>Live</span>`:'<span style="font-size:10px;color:rgba(255,255,255,.25)">Offline</span>'}
+          </div>
+          ${targetDone?'<span style="font-size:14px" title="Daily goal reached!">✅</span>':''}
+        </div>
+        <div id="ucard_total_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:700;color:#f0f0f0;margin-bottom:4px">${fmtSec(u.secs)}</div>
+        <div style="margin-bottom:5px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,.3);margin-bottom:2px">
+            <span>Daily target</span><span id="ucard_tpct_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" style="color:${targetDone?'#1D9E75':'rgba(255,255,255,.3)'}">${targetPct}%</span>
+          </div>
+          <div style="background:rgba(255,255,255,.06);border-radius:99px;height:4px;overflow:hidden">
+            <div id="ucard_tbar_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" style="height:100%;border-radius:99px;width:${targetPct}%;background:${targetDone?'linear-gradient(90deg,#1D9E75,#5DCAA5)':'linear-gradient(90deg,#378ADD,#7F77DD)'};transition:width .5s ease"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,.3)">📚 ${count} session${count!==1?'s':''} · ${topSubj?topSubj[0]:'—'}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.2);margin-top:3px">Tap to view details →</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── SUBJECT BREAKDOWN (filtered, all users) ──
+  var subjMap={};
+  allFiltered.forEach(s=>{
+    if(!subjMap[s.subject])subjMap[s.subject]={secs:0,count:0};
+    subjMap[s.subject].secs+=s.duration;subjMap[s.subject].count++;
+  });
+  var subjList=document.getElementById('subj-list');
+  var keys=Object.keys(subjMap).sort((a,b)=>subjMap[b].secs-subjMap[a].secs);
+  var maxSec=keys.length?subjMap[keys[0]].secs:1;
+  subjList.innerHTML=keys.length?keys.map(k=>{
+    var col=SUBJ_COLORS[k]||'#5F5E5A';
+    return`<div class="subj-row"><span class="subj-dot" style="background:${col}"></span><span class="subj-name">${k}</span><div class="subj-bar-wrap"><div class="subj-bar" style="width:${Math.round(subjMap[k].secs/maxSec*100)}%;background:${col}"></div></div><span class="subj-time">${fmtSec(subjMap[k].secs)}</span><span class="subj-sessions">${subjMap[k].count} session${subjMap[k].count!==1?'s':''}</span></div>`;
+  }).join(''):'<div class="empty">No study data for this period.</div>';
+
+  // ── SESSIONS (filtered, all users, last 10) ──
+  var all=allFiltered.sort((a,b)=>b.id-a.id).slice(0,10);
+  var sessList=document.getElementById('sess-list');
+  // Find name for each session
+  var sessionNames={};
+  Object.entries(_allUsers).forEach(([uid,u])=>{
+    (u.sessions||[]).forEach(s=>{sessionNames[s.id]=u.profile&&u.profile.name?u.profile.name:'';});
+  });
+  sessList.innerHTML=all.length?all.map(s=>`<div class="sess-item">
+    <span class="sess-badge" style="background:${SUBJ_COLORS[s.subject]||'#5F5E5A'}">${s.subject}</span>
+    ${sessionNames[s.id]?`<span style="font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap">${escHtml(sessionNames[s.id])}</span>`:''}
+    <span class="sess-subj" style="color:${CAT_COLORS[s.category]||'var(--muted)'}">${s.category}</span>
+    <span class="sess-meta">${s.date} · ${s.time}</span>
+    <span class="sess-dur">${fmtSec(s.duration)}</span>
+  </div>`).join(''):'<div class="empty">No sessions for this period.</div>';
+}
+
+// ── USER DETAIL MODAL ──
+var DAILY_TARGET_MODAL=36000;
+function openUserModal(uid){
+  var u=_allUsers[uid];
+  if(!u)return;
+  var name=u.profile&&u.profile.name?u.profile.name:'Unknown';
+  var col=stringColor(name);
+  var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  var isLive=u.live&&u.live.running;
+  var isPaused=u.live&&u.live.paused;
+
+  document.getElementById('m-avatar').style.background='linear-gradient(135deg,'+col+')';
+  document.getElementById('m-avatar').textContent=initials;
+  document.getElementById('m-name').textContent=name;
+  document.getElementById('m-status').textContent=isLive?'🟢 Studying now':isPaused?'⏸ Paused':'⚫ Offline';
+
+  // Use current filter for sessions
+  var filtered=filterByPeriod(u.sessions||[]);
+  var today=todayKey();
+  var todaySecs=(u.sessions||[]).filter(s=>s.date===today).reduce((a,s)=>a+s.duration,0);
+  var totalSecs=filtered.reduce((a,s)=>a+s.duration,0);
+  var count=filtered.length;
+  var longest=count?Math.max(...filtered.map(s=>s.duration)):0;
+
+  // Daily target (always today)
+  var tpct=Math.min(100,Math.round(todaySecs/DAILY_TARGET_MODAL*100));
+  document.getElementById('m-target-bar').style.width=tpct+'%';
+  document.getElementById('m-target-pct').textContent=tpct+'%';
+  document.getElementById('m-target-done').textContent=fmtSec(todaySecs)+' done';
+  document.getElementById('m-target-left').textContent=todaySecs>=DAILY_TARGET_MODAL?'✓ Goal reached!':fmtSec(DAILY_TARGET_MODAL-todaySecs)+' left';
+  document.getElementById('m-target-bar').style.background=tpct>=100?'linear-gradient(90deg,#1D9E75,#5DCAA5)':'linear-gradient(90deg,#0F6E56,#1D9E75,#5DCAA5)';
+
+  document.getElementById('m-total').textContent=fmtSec(totalSecs);
+  document.getElementById('m-count').textContent=count;
+  document.getElementById('m-longest').textContent=fmtSec(longest);
+
+  // Subject breakdown
+  var uSubj={};
+  filtered.forEach(s=>{uSubj[s.subject]=(uSubj[s.subject]||0)+s.duration;});
+  var subjEntries=Object.entries(uSubj).sort((a,b)=>b[1]-a[1]);
+  var maxS=subjEntries.length?subjEntries[0][1]:1;
+  document.getElementById('m-subjects').innerHTML=subjEntries.length?subjEntries.map(([k,v])=>{
+    var sc=SUBJ_COLORS[k]||'#5F5E5A';
+    return`<div style="display:flex;align-items:center;gap:8px">
+      <span style="width:8px;height:8px;border-radius:50%;background:${sc};flex-shrink:0"></span>
+      <span style="font-size:12px;color:#f0f0f0;flex:1">${k}</span>
+      <div style="width:80px;background:rgba(255,255,255,.06);border-radius:99px;height:5px;overflow:hidden">
+        <div style="height:100%;border-radius:99px;width:${Math.round(v/maxS*100)}%;background:${sc}"></div>
+      </div>
+      <span style="font-size:12px;color:rgba(255,255,255,.5);width:36px;text-align:right">${fmtSec(v)}</span>
+    </div>`;
+  }).join(''):'<div style="font-size:12px;color:rgba(255,255,255,.3)">No data for this period.</div>';
+
+  // Sessions list (sorted, show all for this period)
+  var sorted=filtered.slice().sort((a,b)=>b.id-a.id);
+  document.getElementById('m-sessions').innerHTML=sorted.length?sorted.map(s=>`
+    <div style="display:flex;align-items:center;gap:7px;padding:7px 0;border-top:1px solid rgba(255,255,255,.06)">
+      <span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${SUBJ_COLORS[s.subject]||'#5F5E5A'};color:#fff;white-space:nowrap">${s.subject}</span>
+      <span style="font-size:11px;color:${CAT_COLORS[s.category]||'rgba(255,255,255,.4)'}">${s.category}</span>
+      <span style="font-size:11px;color:rgba(255,255,255,.25);flex:1">${s.date} · ${s.time}</span>
+      <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:#f0f0f0;white-space:nowrap">${fmtSec(s.duration)}</span>
+    </div>`).join(''):'<div style="font-size:12px;color:rgba(255,255,255,.3);padding:.5rem 0">No sessions for this period.</div>';
+
+  var modal=document.getElementById('user-modal');
+  modal.style.display='flex';
+  setTimeout(()=>document.getElementById('user-modal-inner').scrollTop=0,50);
+}
+function closeUserModal(){document.getElementById('user-modal').style.display='none';}
+document.getElementById('user-modal').addEventListener('click',function(e){if(e.target===this)closeUserModal();});
+
+// ── COUNTDOWN ──
+function updateCD(){
+  var now=new Date(),diff=EXAM-now;
+  if(diff<=0){['cd-mo','cd-wk','cd-dy','cd-hr','cd-mn','cd-sc'].forEach(id=>document.getElementById(id).textContent='0');return;}
+  var tmp=new Date(now),months=0;
+  while(true){var nx=new Date(tmp);nx.setMonth(nx.getMonth()+1);if(nx>EXAM)break;months++;tmp=nx;}
+  var remSec=Math.floor((EXAM-tmp)/1000);
+  document.getElementById('cd-mo').textContent=months;
+  document.getElementById('cd-wk').textContent=Math.floor(remSec/604800);
+  document.getElementById('cd-dy').textContent=Math.floor((remSec%604800)/86400);
+  document.getElementById('cd-hr').textContent=Math.floor((remSec%86400)/3600);
+  document.getElementById('cd-mn').textContent=Math.floor((remSec%3600)/60);
+  document.getElementById('cd-sc').textContent=remSec%60;
+}
+setInterval(updateCD,1000);updateCD();
+
+// ── COMMENTS ──
+var commentsRef=db.ref('comments');
+
+// Each user gets a unique token stored in localStorage — used to identify own comments
+function getMyToken(){
+  var t=localStorage.getItem('pub_token');
+  if(!t){t='tok_'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('pub_token',t);}
+  return t;
+}
+var MY_TOKEN=getMyToken();
+var _editKey=null;
+
+commentsRef.limitToLast(30).on('value',snap=>{
+  var data=snap.val();
+  var list=document.getElementById('comments-list');
+  if(!data){list.innerHTML='<div class="empty">No messages yet — be the first!</div>';return;}
+  var comments=Object.entries(data).map(([k,v])=>({...v,_key:k})).sort((a,b)=>b.ts-a.ts);
+  list.innerHTML=comments.map(c=>{
+    var isOwn=c.token===MY_TOKEN;
+    var actions=isOwn?`
+      <button onclick="openEdit('${c._key}','${escAttr(c.msg)}')" style="background:rgba(55,138,221,.15);border:1px solid rgba(55,138,221,.25);border-radius:6px;padding:3px 9px;color:#378ADD;font-size:10px;cursor:pointer;font-family:inherit">Edit</button>
+      <button onclick="deleteComment('${c._key}')" style="background:rgba(226,75,74,.12);border:1px solid rgba(226,75,74,.2);border-radius:6px;padding:3px 9px;color:#E24B4A;font-size:10px;cursor:pointer;font-family:inherit">Delete</button>`:'';
+    return`<div style="padding:8px 0;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:8px;align-items:flex-start">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,${stringColor(c.name)});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff">${(c.name||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:500;color:#f0f0f0">${escHtml(c.name)}</span>
+          ${isOwn?'<span style="font-size:9px;background:rgba(29,158,117,.15);color:#5DCAA5;padding:1px 6px;border-radius:4px;border:1px solid rgba(29,158,117,.2)">you</span>':''}
+          <span style="font-size:10px;color:rgba(255,255,255,.3)">${timeAgo(c.ts)}</span>
+          ${c.edited?'<span style="font-size:9px;color:rgba(255,255,255,.2)">(edited)</span>':''}
+          ${actions}
+        </div>
+        <div id="msg-${c._key}" style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;word-break:break-word">${escHtml(c.msg)}</div>
+      </div>
+    </div>`;
+  }).join('');
+});
+
+function postComment(){
+  var name=document.getElementById('c-name').value.trim();
+  var msg=document.getElementById('c-msg').value.trim();
+  if(!name||!msg){alert('Please enter your name and message.');return;}
+  if(msg.length>300){alert('Message too long (max 300 chars).');return;}
+  // Save name for next time
+  localStorage.setItem('pub_name',name);
+  commentsRef.push({name:name,msg:msg,ts:Date.now(),token:MY_TOKEN});
+  document.getElementById('c-msg').value='';
+}
+
+function openEdit(key,msg){
+  _editKey=key;
+  document.getElementById('edit-input').value=msg;
+  var m=document.getElementById('edit-modal');
+  m.style.display='flex';
+  setTimeout(()=>document.getElementById('edit-input').focus(),100);
+}
+function closeEdit(){document.getElementById('edit-modal').style.display='none';_editKey=null;}
+function saveEdit(){
+  if(!_editKey)return;
+  var newMsg=document.getElementById('edit-input').value.trim();
+  if(!newMsg){alert('Message cannot be empty.');return;}
+  commentsRef.child(_editKey).update({msg:newMsg,edited:true});
+  closeEdit();
+}
+function deleteComment(key){
+  if(!confirm('Delete this comment?'))return;
+  commentsRef.child(key).remove();
+}
+
+// Restore saved name
+window.addEventListener('DOMContentLoaded',()=>{
+  var saved=localStorage.getItem('pub_name');
+  if(saved)document.getElementById('c-name').value=saved;
+});
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escAttr(s){return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
+function timeAgo(ts){
+  var d=Math.floor((Date.now()-ts)/1000);
+  if(d<60)return 'just now';
+  if(d<3600)return Math.floor(d/60)+'m ago';
+  if(d<86400)return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+function stringColor(s){
+  var colors=[['#1D9E75','#0F6E56'],['#7F77DD','#534AB7'],['#378ADD','#185FA5'],['#EF9F27','#BA7517'],['#D85A30','#9E3A1A']];
+  var i=(s||'').charCodeAt(0)%colors.length;
+  return colors[i][0]+','+colors[i][1];
+}
+</script>
+</body>
+</html>
