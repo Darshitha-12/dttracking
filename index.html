@@ -521,7 +521,10 @@ function renderAllUsers(){
 
     return`<div style="background:var(--bg2);border:1px solid ${isRunning?'rgba(29,158,117,.25)':isPaused?'rgba(239,159,39,.2)':isOnline?'rgba(55,138,221,.2)':'var(--border)'};border-radius:12px;padding:.85rem 1rem">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
-        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
+        <div style="position:relative;flex-shrink:0">
+          <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
+          ${isRunning?`<span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:#1D9E75;border:1.5px solid #111622;animation:lpulse .8s infinite alternate"></span>`:isOnline||isPaused?`<span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:${isPaused?'#EF9F27':'#378ADD'};border:1.5px solid #111622"></span>`:''}
+        </div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</div>
           ${statusBadge}
@@ -635,7 +638,10 @@ function render(){
       var topSubj=Object.entries(uSubj).sort((a,b)=>b[1]-a[1])[0];
       return`<div onclick="openUserModal('${uid}')" style="background:var(--bg2);border:1px solid ${isLive?'rgba(29,158,117,.3)':targetDone?'rgba(29,158,117,.15)':'rgba(255,255,255,.07)'};border-radius:12px;padding:.9rem 1rem;cursor:pointer;transition:border-color .15s,transform .1s;animation:slideUp .4s ease" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${initials}</div>
+          <div style="position:relative;flex-shrink:0">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${col});display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${initials}</div>
+            ${isLive?`<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#1D9E75;border:2px solid #111622;animation:lpulse .8s infinite alternate"></span>`:isPausedCard||isOnlineCard?`<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:${isPausedCard?'#EF9F27':'#378ADD'};border:2px solid #111622"></span>`:''}
+          </div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(u.name)}</div>
             ${cardStatus}
