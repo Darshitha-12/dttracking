@@ -481,13 +481,26 @@ function renderAllUsers(){
 
   var container=document.getElementById('all-users-grid');
   if(!container)return;
-  if(!users.length){container.innerHTML='<div class="empty">No one is studying yet.</div>';return;}
 
   // Clear old timers
   Object.values(_liveTimers).forEach(clearInterval);
   _liveTimers={};
 
-  container.innerHTML=users.map(([uid,u])=>{
+  // Only show users who are currently online or studying — offline users hidden
+  var visibleUsers=users.filter(([,u])=>u.online||(u.live&&(u.live.running||u.live.paused)));
+
+  if(!visibleUsers.length){
+    container.innerHTML='<div class="empty" style="grid-column:1/-1">No one is online right now.</div>';
+    return;
+  }
+
+  // Sort: running first, then paused, then online-idle
+  visibleUsers.sort(([,a],[,b])=>{
+    var rank=u=>(u.live&&u.live.running)?0:(u.live&&u.live.paused)?1:2;
+    return rank(a)-rank(b);
+  });
+
+  container.innerHTML=visibleUsers.map(([uid,u])=>{
     var live=u.live||{};
     var name=u.profile.name||'Unknown';
     var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
@@ -537,7 +550,7 @@ function renderAllUsers(){
 
   // Start live timers for running users — after DOM rendered
   setTimeout(()=>{
-    users.forEach(([uid,u])=>{
+    visibleUsers.forEach(([uid,u])=>{
       var live=u.live||{};
       if(live.running&&live.startedAt){
         var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
