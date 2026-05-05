@@ -348,7 +348,7 @@ const firebaseConfig={
 firebase.initializeApp(firebaseConfig);
 var db=firebase.database();
 
-function todayKey(){return new Date().toISOString().slice(0,10)}
+function todayKey(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}
 function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return[h,m,sc].map(x=>String(x).padStart(2,'0')).join(':')}
 function fmtSec(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m+'m'}
 
@@ -550,6 +550,7 @@ function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;retur
 function renderAllUsers(){
   var users=Object.entries(_allUsers);
 
+  // ── GROUP BADGE ──
   var activeCount=users.filter(([,u])=>u.live&&u.live.running).length;
   var onlineCount=users.filter(([,u])=>u.online||u.live&&u.live.running).length;
   var gb=document.getElementById('group-badge');
@@ -575,71 +576,79 @@ function renderAllUsers(){
   if(!container)return;
   if(!users.length){container.innerHTML='<div class="empty">No one is studying yet.</div>';return;}
 
-  // Clear old timers
-  Object.values(_liveTimers).forEach(clearInterval);
-  _liveTimers={};
+  // ── SMART UPDATE: only rebuild cards whose state changed, preserving live timers ──
+  if(!renderAllUsers._prevState)renderAllUsers._prevState={};
+  var prevState=renderAllUsers._prevState;
 
-  container.innerHTML=users.map(([uid,u])=>{
+  users.forEach(([uid,u])=>{
     var live=u.live||{};
-    var name=u.profile.name||'Unknown';
-    var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     var isRunning=!!live.running;
     var isPaused=!!live.paused;
     var isOnline=!!u.online;
-    var col=stringColor(name);
+    var name=u.profile.name||'Unknown';
+    var cardId='card_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
     var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
+    var stateKey=isRunning+'|'+isPaused+'|'+isOnline+'|'+(live.startedAt||0)+'|'+name;
 
-    // Status — priority: running > paused > online > offline+lastSeen
-    var statusBadge=isRunning
-      ?`<span style="background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:#5DCAA5;font-size:10px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#1D9E75;animation:lpulse .8s infinite alternate"></span>Live</span>`
-      :isPaused
-      ?`<span style="background:rgba(239,159,39,.1);border:1px solid rgba(239,159,39,.25);color:#EF9F27;font-size:10px;padding:2px 8px;border-radius:20px">⏸ Paused</span>`
-      :isOnline
-      ?`<span style="background:rgba(55,138,221,.12);border:1px solid rgba(55,138,221,.3);color:#5BA4E5;font-size:10px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#378ADD"></span>Online</span>`
-      :`<span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.22);font-size:10px;padding:2px 8px;border-radius:20px">Offline${u.lastSeen?(' · '+timeAgo(u.lastSeen)):''}</span>`;
+    var card=document.getElementById(cardId);
 
-    var subjectLine=isRunning||isPaused
-      ?`<div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:3px">${live.subject||''}${live.category?' · '+live.category:''}</div>`
-      :'';
+    if(!card||prevState[uid]!==stateKey){
+      prevState[uid]=stateKey;
+      if(_liveTimers[uid]){clearInterval(_liveTimers[uid]);delete _liveTimers[uid];}
 
-    // Compute initial timer value correctly
-    var initTimer='--:--:--';
-    if(isRunning&&live.startedAt){
-      var el=Math.floor((serverNow()-live.startedAt)/1000)-(live.pausedAccum||0);
-      initTimer=fmt(Math.max(0,el));
-    } else if(isPaused){
-      initTimer=fmt(live.frozenElapsed||0);
-    }
+      var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+      var col=stringColor(name);
 
-    return`<div style="background:var(--bg2);border:1px solid ${isRunning?'rgba(29,158,117,.25)':isPaused?'rgba(239,159,39,.2)':isOnline?'rgba(55,138,221,.2)':'var(--border)'};border-radius:12px;padding:.85rem 1rem">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
-        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</div>
-          ${statusBadge}
-        </div>
-      </div>
-      ${subjectLine}
-      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:${isRunning?'#1D9E75':isPaused?'#EF9F27':'rgba(255,255,255,.15)'};letter-spacing:.04em;margin-top:.4rem" id="${safeId}">${initTimer}</div>
-    </div>`;
-  }).join('');
+      var statusBadge=isRunning
+        ?`<span style="background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:#5DCAA5;font-size:10px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#1D9E75;animation:lpulse .8s infinite alternate"></span>Live</span>`
+        :isPaused
+        ?`<span style="background:rgba(239,159,39,.1);border:1px solid rgba(239,159,39,.25);color:#EF9F27;font-size:10px;padding:2px 8px;border-radius:20px">\u23f8 Paused</span>`
+        :isOnline
+        ?`<span style="background:rgba(55,138,221,.12);border:1px solid rgba(55,138,221,.3);color:#5BA4E5;font-size:10px;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px"><span style="width:5px;height:5px;border-radius:50%;background:#378ADD"></span>Online</span>`
+        :`<span style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.22);font-size:10px;padding:2px 8px;border-radius:20px">Offline${u.lastSeen?(' \u00b7 '+timeAgo(u.lastSeen)):''}</span>`;
 
-  // Start live timers for running users — after DOM rendered
-  setTimeout(()=>{
-    users.forEach(([uid,u])=>{
-      var live=u.live||{};
-      if(live.running&&live.startedAt){
-        var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
-        var pa=live.pausedAccum||0;
+      var subjectLine=isRunning||isPaused
+        ?`<div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:3px">${escHtml(live.subject||'')}${live.category?' \u00b7 '+escHtml(live.category):''}</div>`
+        :'';
+
+      var initTimer='--:--:--';
+      if(isRunning&&live.startedAt){
+        initTimer=fmt(Math.max(0,Math.floor((serverNow()-live.startedAt)/1000)-(live.pausedAccum||0)));
+      } else if(isPaused){
+        initTimer=fmt(live.frozenElapsed||0);
+      }
+
+      var borderColor=isRunning?'rgba(29,158,117,.25)':isPaused?'rgba(239,159,39,.2)':isOnline?'rgba(55,138,221,.2)':'var(--border)';
+      var timerColor=isRunning?'#1D9E75':isPaused?'#EF9F27':'rgba(255,255,255,.15)';
+
+      var html=`<div id="${cardId}" style="background:var(--bg2);border:1px solid ${borderColor};border-radius:12px;padding:.85rem 1rem"><div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem"><div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</div>${statusBadge}</div></div>${subjectLine}<div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:${timerColor};letter-spacing:.04em;margin-top:.4rem" id="${safeId}">${initTimer}</div></div>`;
+
+      if(!card){
+        var div=document.createElement('div');
+        div.innerHTML=html;
+        container.appendChild(div.firstElementChild);
+      } else {
+        card.outerHTML=html;
+      }
+
+      if(isRunning&&live.startedAt){
+        var pa=live.pausedAccum||0,sa=live.startedAt;
         _liveTimers[uid]=setInterval(()=>{
-          var el=Math.floor((serverNow()-live.startedAt)/1000)-pa;
           var el2=document.getElementById(safeId);
-          if(el2)el2.textContent=fmt(Math.max(0,el));
+          if(el2)el2.textContent=fmt(Math.max(0,Math.floor((serverNow()-sa)/1000)-pa));
         },500);
       }
-    });
-  },50);
+    }
+  });
+
+  // Remove cards for gone users
+  Array.from(container.children).forEach(child=>{
+    if(!child.id||!child.id.startsWith('card_'))return;
+    var found=Object.keys(_allUsers).some(u=>'card_'+u.replace(/[^a-zA-Z0-9]/g,'_')===child.id);
+    if(!found){child.remove();}
+  });
 }
+
 
 // Listen sessions in real-time (all users combined for stats)
 var _prevLeader=null;
