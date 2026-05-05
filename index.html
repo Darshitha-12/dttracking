@@ -446,6 +446,7 @@ db.ref('users').on('value',snap=>{
       profile:udata.profile||{name:'Unknown'},
       sessions:udata.sessions?Object.values(udata.sessions):[],
       schedules:udata.schedules?Object.values(udata.schedules):[],
+      dailyTarget:(udata.settings&&udata.settings.dailyTarget)||36000,
       online:isOnline,
       lastSeen:presence.lastSeen||0
     };
@@ -538,7 +539,8 @@ function renderLiveStats(){
     var totalEl=document.getElementById(safeId);
     var tbarEl=document.getElementById(safeTbar);
     var tpctEl=document.getElementById(safeTpct);
-    var tpct=Math.min(100,Math.round(v.secs/DAILY_TARGET*100));
+    var _utgt=(_allUsers[uid]&&_allUsers[uid].dailyTarget)||DAILY_TARGET;
+    var tpct=Math.min(100,Math.round(v.secs/_utgt*100));
     if(totalEl)totalEl.textContent=fmtSec(v.secs);
     if(tbarEl)tbarEl.style.width=tpct+'%';
     if(tpctEl)tpctEl.textContent=tpct+'%';
@@ -730,7 +732,8 @@ function render(){
       // Daily target (today only — saved + live)
       var todaySavedSecs=(u.sessions||[]).filter(s=>s.date===today).reduce((a,s)=>a+s.duration,0);
       var todaySecs=todaySavedSecs+getLiveElapsedForUser(uid);
-      var targetPct=Math.min(100,Math.round(todaySecs/DAILY_TARGET*100));
+      var _uTarget=(_allUsers[uid]&&_allUsers[uid].dailyTarget)||DAILY_TARGET;
+      var targetPct=Math.min(100,Math.round(todaySecs/_uTarget*100));
       var targetDone=targetPct>=100;
       var uSubj={};
       sessions.forEach(s=>{uSubj[s.subject]=(uSubj[s.subject]||0)+s.duration;});
@@ -750,7 +753,7 @@ function render(){
             <span>Daily target</span><span id="ucard_tpct_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" style="color:${targetDone?'#1D9E75':'rgba(255,255,255,.3)'}">${targetPct}%</span>
           </div>
           <div style="background:rgba(255,255,255,.06);border-radius:99px;height:4px;overflow:hidden">
-            <div id="ucard_tbar_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" style="height:100%;border-radius:99px;width:${targetPct}%;background:${targetDone?'linear-gradient(90deg,#1D9E75,#5DCAA5)':'linear-gradient(90deg,#378ADD,#7F77DD)'};transition:width .5s ease"></div>
+            <div id="ucard_tbar_${uid.replace(/[^a-zA-Z0-9]/g,'_')}" data-target="${_uTarget}" style="height:100%;border-radius:99px;width:${targetPct}%;background:${targetDone?'linear-gradient(90deg,#1D9E75,#5DCAA5)':'linear-gradient(90deg,#378ADD,#7F77DD)'};transition:width .5s ease"></div>
           </div>
         </div>
         <div style="font-size:11px;color:rgba(255,255,255,.3)">📚 ${count} session${count!==1?'s':''} · ${topSubj?topSubj[0]:'—'}</div>
@@ -797,7 +800,8 @@ function render(){
       var mSaved=(mu.sessions||[]).filter(s=>s.date===mToday).reduce((a,s)=>a+s.duration,0);
       var mLive=getLiveElapsedForUser(_openModalUid);
       var mTotal=mSaved+mLive;
-      var mPct=Math.min(100,Math.round(mTotal/36000*100));
+      var _muTgt=(_allUsers[_openModalUid]&&_allUsers[_openModalUid].dailyTarget)||36000;
+      var mPct=Math.min(100,Math.round(mTotal/_muTgt*100));
       var mb=document.getElementById('m-target-bar');
       var mp=document.getElementById('m-target-pct');
       var md=document.getElementById('m-target-done');
@@ -805,7 +809,7 @@ function render(){
       if(mb)mb.style.width=mPct+'%';
       if(mp)mp.textContent=mPct+'%';
       if(md)md.textContent=fmtSec(mTotal)+' done';
-      if(ml)ml.textContent=mTotal>=36000?'✓ Goal reached!':fmtSec(36000-mTotal)+' left';
+      if(ml)ml.textContent=mTotal>=_muTgt?'✓ Goal reached!':fmtSec(_muTgt-mTotal)+' left';
     }
   }
 }
@@ -837,11 +841,12 @@ function openUserModal(uid){
   var longest=count?Math.max(...filtered.map(s=>s.duration)):0;
 
   // Daily target (always today)
-  var tpct=Math.min(100,Math.round(todaySecs/DAILY_TARGET_MODAL*100));
+  var _uTgt=(_allUsers[uid]&&_allUsers[uid].dailyTarget)||DAILY_TARGET_MODAL;
+  var tpct=Math.min(100,Math.round(todaySecs/_uTgt*100));
   document.getElementById('m-target-bar').style.width=tpct+'%';
   document.getElementById('m-target-pct').textContent=tpct+'%';
   document.getElementById('m-target-done').textContent=fmtSec(todaySecs)+' done';
-  document.getElementById('m-target-left').textContent=todaySecs>=DAILY_TARGET_MODAL?'✓ Goal reached!':fmtSec(DAILY_TARGET_MODAL-todaySecs)+' left';
+  document.getElementById('m-target-left').textContent=todaySecs>=_uTgt?'✓ Goal reached!':fmtSec(_uTgt-todaySecs)+' left';
   document.getElementById('m-target-bar').style.background=tpct>=100?'linear-gradient(90deg,#1D9E75,#5DCAA5)':'linear-gradient(90deg,#0F6E56,#1D9E75,#5DCAA5)';
 
   document.getElementById('m-total').textContent=fmtSec(totalSecs);
