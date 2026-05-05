@@ -357,6 +357,77 @@ var serverTimeOffset=0;
 db.ref('.info/serverTimeOffset').on('value',snap=>{serverTimeOffset=snap.val()||0;});
 function serverNow(){return Date.now()+serverTimeOffset;}
 
+// ── PUBLIC TAB PRESENCE ──
+// If user has a saved name (from tracker), mark them online while viewing public tab too
+var _pubPresenceRef=null;
+var _pubUserId=null;
+
+function markPubOnline(){
+  if(!_pubPresenceRef||document.hidden)return;
+  var ts=Date.now();
+  _pubPresenceRef.set({online:true,lastSeen:ts});
+  // Also immediately update local _allUsers so UI reflects without waiting for next Firebase snapshot
+  if(_pubUserId&&_allUsers[_pubUserId]){
+    _allUsers[_pubUserId].online=true;
+    _allUsers[_pubUserId].lastSeen=ts;
+    renderAllUsers();
+    render();
+  }
+}
+
+function initPublicPresence(){
+  var savedName=localStorage.getItem('st_username');
+  if(!savedName)return;
+  _pubUserId='user_'+savedName.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  _pubPresenceRef=db.ref('users/'+_pubUserId+'/presence');
+
+  // Mark online now using Firebase onDisconnect pattern
+  db.ref('.info/connected').on('value',snap=>{
+    if(!snap.val())return;
+    _pubPresenceRef.onDisconnect().set({online:false,lastSeen:Date.now()});
+    markPubOnline();
+  });
+
+  // Keep lastSeen fresh every 30s
+  setInterval(()=>{
+    if(_pubPresenceRef&&!document.hidden){
+      markPubOnline();
+    }
+  },30000);
+
+  // Mark offline when tab hidden / closed
+  document.addEventListener('visibilitychange',()=>{
+    if(!_pubPresenceRef)return;
+    if(document.hidden){
+      _pubPresenceRef.set({online:false,lastSeen:Date.now()});
+      if(_pubUserId&&_allUsers[_pubUserId]){
+        _allUsers[_pubUserId].online=false;
+        renderAllUsers();render();
+      }
+    } else {
+      markPubOnline();
+    }
+  });
+  window.addEventListener('beforeunload',()=>{
+    if(_pubPresenceRef)_pubPresenceRef.set({online:false,lastSeen:Date.now()});
+  });
+
+  // Also re-apply online status every time _allUsers gets rebuilt by Firebase snapshot
+  // by scheduling a delayed markPubOnline after each snapshot update
+  var _presenceReapplyTimer=null;
+  var _origUsersListener=db.ref('users');
+  // Hook: after any users snapshot, re-assert our online presence into local state
+  setInterval(()=>{
+    if(_pubUserId&&_allUsers[_pubUserId]&&!document.hidden){
+      var ts=Date.now();
+      if(!_allUsers[_pubUserId].online||(ts-(_allUsers[_pubUserId].lastSeen||0))>60000){
+        markPubOnline();
+      }
+    }
+  },5000);
+}
+initPublicPresence();
+
 // ── MULTI-USER LIVE ──
 var _allUsers={};  // userId → {live, profile, sessions}
 var _liveTimers={};// userId → intervalId
@@ -367,7 +438,9 @@ db.ref('users').on('value',snap=>{
   Object.entries(data).forEach(([uid,udata])=>{
     var presence=udata.presence||{online:false};
     // Consider online if: presence.online=true AND lastSeen within 90 seconds
-    var isOnline=presence.online&&(Date.now()-( presence.lastSeen||0))<90000;
+    var isOnline=presence.online&&(Date.now()-(presence.lastSeen||0))<90000;
+    // If this is our own user and we're actively on this public page, force online
+    if(uid===_pubUserId&&!document.hidden)isOnline=true;
     _allUsers[uid]={
       live:udata.live||{running:false},
       profile:udata.profile||{name:'Unknown'},
