@@ -143,6 +143,16 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
 .new-leader{animation:popIn .5s cubic-bezier(.34,1.56,.64,1)}
 @keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
 
+/* SCHEDULES TAB */
+.sched-tabs{display:flex;gap:6px;margin-bottom:.7rem;flex-wrap:wrap}
+.sched-tab-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:5px 13px;font-size:11px;color:rgba(255,255,255,.4);font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap}
+.sched-tab-btn:hover{background:rgba(255,255,255,.09);color:rgba(255,255,255,.7)}
+.sched-tab-btn.active{background:linear-gradient(135deg,rgba(127,119,221,.2),rgba(127,119,221,.06));border-color:rgba(127,119,221,.35);color:#a8a3e8;font-weight:500}
+.sched-pub-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);flex-wrap:wrap}
+.sched-pub-time{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(127,119,221,.12);border:1px solid rgba(127,119,221,.2);color:#a8a3e8;white-space:nowrap;flex-shrink:0}
+.sched-pub-time.active{background:rgba(29,158,117,.15);border-color:rgba(29,158,117,.3);color:#5DCAA5;animation:schedPulse 1s ease infinite alternate}
+@keyframes schedPulse{to{opacity:.6}}
+
 @media(max-width:500px){
   .cd-blk{min-width:36px}.cd-v{font-size:15px}
 }
@@ -230,6 +240,13 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   <div class="section-title">Sessions</div>
   <div class="sessions-card">
     <div id="sess-list"><div class="empty">No sessions yet.</div></div>
+  </div>
+
+  <!-- SCHEDULES -->
+  <div class="section-title" style="margin-top:1rem">📅 Upcoming schedules</div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem;margin-bottom:1rem">
+    <div class="sched-tabs" id="sched-user-tabs"></div>
+    <div id="sched-pub-list"><div class="empty">No schedules yet.</div></div>
   </div>
 
   <!-- COMMENTS -->
@@ -355,12 +372,14 @@ db.ref('users').on('value',snap=>{
       live:udata.live||{running:false},
       profile:udata.profile||{name:'Unknown'},
       sessions:udata.sessions?Object.values(udata.sessions):[],
+      schedules:udata.schedules?Object.values(udata.schedules):[],
       online:isOnline,
       lastSeen:presence.lastSeen||0
     };
   });
   renderAllUsers();
   render();
+  renderPublicSchedules();
   startLiveStatsTicker();
 });
 
@@ -481,26 +500,13 @@ function renderAllUsers(){
 
   var container=document.getElementById('all-users-grid');
   if(!container)return;
+  if(!users.length){container.innerHTML='<div class="empty">No one is studying yet.</div>';return;}
 
   // Clear old timers
   Object.values(_liveTimers).forEach(clearInterval);
   _liveTimers={};
 
-  // Only show users who are currently online or studying — offline users hidden
-  var visibleUsers=users.filter(([,u])=>u.online||(u.live&&(u.live.running||u.live.paused)));
-
-  if(!visibleUsers.length){
-    container.innerHTML='<div class="empty" style="grid-column:1/-1">No one is online right now.</div>';
-    return;
-  }
-
-  // Sort: running first, then paused, then online-idle
-  visibleUsers.sort(([,a],[,b])=>{
-    var rank=u=>(u.live&&u.live.running)?0:(u.live&&u.live.paused)?1:2;
-    return rank(a)-rank(b);
-  });
-
-  container.innerHTML=visibleUsers.map(([uid,u])=>{
+  container.innerHTML=users.map(([uid,u])=>{
     var live=u.live||{};
     var name=u.profile.name||'Unknown';
     var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
@@ -534,10 +540,7 @@ function renderAllUsers(){
 
     return`<div style="background:var(--bg2);border:1px solid ${isRunning?'rgba(29,158,117,.25)':isPaused?'rgba(239,159,39,.2)':isOnline?'rgba(55,138,221,.2)':'var(--border)'};border-radius:12px;padding:.85rem 1rem">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
-        <div style="position:relative;flex-shrink:0">
-          <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
-          ${isRunning?`<span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:#1D9E75;border:1.5px solid #111622;animation:lpulse .8s infinite alternate"></span>`:isOnline||isPaused?`<span style="position:absolute;bottom:0;right:0;width:9px;height:9px;border-radius:50%;background:${isPaused?'#EF9F27':'#378ADD'};border:1.5px solid #111622"></span>`:''}
-        </div>
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff">${initials}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(name)}</div>
           ${statusBadge}
@@ -550,7 +553,7 @@ function renderAllUsers(){
 
   // Start live timers for running users — after DOM rendered
   setTimeout(()=>{
-    visibleUsers.forEach(([uid,u])=>{
+    users.forEach(([uid,u])=>{
       var live=u.live||{};
       if(live.running&&live.startedAt){
         var safeId='t_'+uid.replace(/[^a-zA-Z0-9]/g,'_');
@@ -651,10 +654,7 @@ function render(){
       var topSubj=Object.entries(uSubj).sort((a,b)=>b[1]-a[1])[0];
       return`<div onclick="openUserModal('${uid}')" style="background:var(--bg2);border:1px solid ${isLive?'rgba(29,158,117,.3)':targetDone?'rgba(29,158,117,.15)':'rgba(255,255,255,.07)'};border-radius:12px;padding:.9rem 1rem;cursor:pointer;transition:border-color .15s,transform .1s;animation:slideUp .4s ease" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem">
-          <div style="position:relative;flex-shrink:0">
-            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${col});display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${initials}</div>
-            ${isLive?`<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:#1D9E75;border:2px solid #111622;animation:lpulse .8s infinite alternate"></span>`:isPausedCard||isOnlineCard?`<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:${isPausedCard?'#EF9F27':'#378ADD'};border:2px solid #111622"></span>`:''}
-          </div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${initials}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:500;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(u.name)}</div>
             ${cardStatus}
@@ -890,6 +890,84 @@ window.addEventListener('DOMContentLoaded',()=>{
   var saved=localStorage.getItem('pub_name');
   if(saved)document.getElementById('c-name').value=saved;
 });
+
+// ── SCHEDULES PUBLIC VIEW ──
+var _pubSchedFilter='all'; // 'all' or a uid
+
+function renderPublicSchedules(){
+  var allScheds=[];
+  Object.entries(_allUsers).forEach(([uid,u])=>{
+    var scheds=u.schedules||[];
+    scheds.forEach(sc=>{allScheds.push({...sc,_uid:uid,_name:(u.profile&&u.profile.name)||'Unknown'});});
+  });
+
+  // Render user tabs
+  var tabs=document.getElementById('sched-user-tabs');
+  var users=Object.entries(_allUsers).filter(([uid,u])=>(u.schedules||[]).length>0);
+  if(tabs){
+    var allBtn=`<button class="sched-tab-btn${_pubSchedFilter==='all'?' active':''}" onclick="setPubSchedFilter('all',this)">All users</button>`;
+    var userBtns=users.map(([uid,u])=>{
+      var name=(u.profile&&u.profile.name)||'Unknown';
+      return`<button class="sched-tab-btn${_pubSchedFilter===uid?' active':''}" onclick="setPubSchedFilter('${uid}',this)">${escHtml(name)}</button>`;
+    }).join('');
+    tabs.innerHTML=allBtn+userBtns;
+  }
+
+  var filtered=_pubSchedFilter==='all'?allScheds:allScheds.filter(s=>s._uid===_pubSchedFilter);
+  // Sort by date then startTime
+  filtered.sort((a,b)=>(a.date+a.startTime).localeCompare(b.date+b.startTime));
+
+  var list=document.getElementById('sched-pub-list');
+  if(!filtered.length){list.innerHTML='<div class="empty">No schedules yet.</div>';return;}
+
+  var now=new Date();
+  var todayStr=todayKey();
+  var tomorrow=new Date(now);tomorrow.setDate(tomorrow.getDate()+1);
+  var tomorrowStr=tomorrow.toISOString().slice(0,10);
+
+  list.innerHTML=filtered.map(sc=>{
+    // Determine status
+    var status='other';
+    var isToday=sc.date===todayStr;
+    var isTomorrow=sc.date===tomorrowStr;
+    if(isToday){
+      var parts=sc.startTime.split(':');
+      var startDt=new Date();startDt.setHours(parseInt(parts[0]),parseInt(parts[1]),0,0);
+      var endDt=new Date(startDt.getTime()+sc.duration*1000);
+      if(now>=startDt&&now<endDt)status='active';
+      else if(now<startDt)status='upcoming';
+      else status='done';
+    }
+
+    var dateLabel=isToday?'Today':isTomorrow?'Tomorrow':sc.date;
+    var statusLabel=status==='active'?'🟢 In progress':status==='done'?'✓ Done':status==='upcoming'?'⏳ Soon':'📅 '+dateLabel;
+
+    // User info
+    var col=stringColor(sc._name);
+    var initials=sc._name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+    return`<div class="sched-pub-item">
+      <span class="sched-pub-time${status==='active'?' active':''}">${sc.startTime}</span>
+      <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,${col});flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">${initials}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;color:#f0f0f0">
+          <span style="display:inline-block;background:${SUBJ_COLORS[sc.subject]||'#5F5E5A'};color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">${escHtml(sc.subject)}</span>${escHtml(sc.category)}
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:1px">${escHtml(sc._name)} · ${statusLabel} · ${dateLabel}</div>
+      </div>
+      <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:rgba(255,255,255,.4);white-space:nowrap">${fmtSec(sc.duration)}</span>
+    </div>`;
+  }).join('');
+}
+
+function setPubSchedFilter(uid,el){
+  _pubSchedFilter=uid;
+  document.querySelectorAll('.sched-tab-btn').forEach(b=>b.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderPublicSchedules();
+}
+
+setInterval(renderPublicSchedules,30000);
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
