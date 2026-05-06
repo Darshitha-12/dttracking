@@ -460,8 +460,8 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   </div>
   <div id="dm-conv-messages"></div>
   <div class="chat-input-row">
-    <input id="dm-input" class="chat-input" placeholder="Send a message..." maxlength="300" onkeydown="if(event.key==='Enter')sendDm()">
-    <button class="chat-send-btn" onclick="sendDm()">➤</button>
+    <input id="dm-input" class="chat-input" placeholder="Send a message..." maxlength="300" onkeydown="if(event.key==='Enter')sendDmOrSaveEdit()">
+    <button id="dm-send-btn" class="chat-send-btn" onclick="sendDmOrSaveEdit()">➤</button>
   </div>
 </div>
 
@@ -1389,31 +1389,36 @@ function getMyUid(){
 
 function renderDmUserList(){
   var el=document.getElementById('dm-user-list');
-  var users=Object.entries(_allUsers).filter(([uid])=>uid!==getMyUid());
+  var myUid=getMyUid();
+  var myName=(_chatMyName||localStorage.getItem('pub_name')||localStorage.getItem('st_username')||'').trim().toLowerCase();
+  var users=Object.entries(_allUsers).filter(function(pair){
+    var uid=pair[0]; var u=pair[1];
+    if(uid===myUid)return false;
+    var uname=(u.profile&&u.profile.name?u.profile.name:'').trim().toLowerCase();
+    if(myName&&uname===myName)return false;
+    return true;
+  });
   if(!users.length){el.innerHTML='<div class="empty" style="font-size:12px;padding:1.5rem 0">No other users yet.</div>';return;}
-  
-  el.innerHTML=users.map(([uid,u])=>{
+  var html='';
+  users.forEach(function(pair){
+    var uid=pair[0]; var u=pair[1];
     var name=u.profile.name||'Unknown';
     var col=stringColor(name);
-    var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    var initials=name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
     var isLive=u.live&&u.live.running;
     var isOnl=u.online||isLive;
     var dotColor=isLive?'#1D9E75':isOnl?'#378ADD':'#444';
     var unread=_dmUnreads[uid]||0;
-    var convId=getDmConvId(getMyUid(),uid);
-    return`<div class="dm-user-row" onclick="openDmConv('${uid}')">
-      <div class="dm-avatar" style="background:linear-gradient(135deg,${col})">
-        ${initials}
-        <span class="dm-status-dot" style="background:${dotColor}"></span>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div class="dm-name">${escHtml(name)}</div>
-        <div class="dm-preview">${isLive?'📚 Studying '+escHtml(u.live.subject||''):isOnl?'Online':'Offline'}</div>
-      </div>
-      ${unread>0?`<div class="dm-unread-badge">${unread}</div>`:''}
-    </div>`;
-  }).join('');
+    var unreadHtml=unread>0?'<div class="dm-unread-badge">'+unread+'</div>':'';
+    html+='<div class="dm-user-row" onclick="openDmConv(\''+uid+'\')">';
+    html+='<div class="dm-avatar" style="background:linear-gradient(135deg,'+col+')">'+initials+'<span class="dm-status-dot" style="background:'+dotColor+'"></span></div>';
+    html+='<div style="flex:1;min-width:0"><div class="dm-name">'+escHtml(name)+'</div>';
+    html+='<div class="dm-preview">'+(isLive?'📚 Studying '+escHtml(u.live.subject||''):isOnl?'🟢 Online':'⚫ Offline')+'</div></div>';
+    html+=unreadHtml+'</div>';
+  });
+  el.innerHTML=html;
 }
+
 
 function openDmConv(uid){
   _dmOtherUid=uid;
@@ -1450,24 +1455,73 @@ function renderDmConv(msgs,otherUid){
   if(!el)return;
   el.style.cssText='flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:6px;min-height:200px;max-height:300px';
   if(!msgs.length){
-    el.innerHTML='<div class="empty" style="margin:auto;font-size:12px">No messages yet — send one! 👋</div>';
+    el.innerHTML='<div class="empty" style="margin:auto;font-size:12px">No messages yet — send one!</div>';
     return;
   }
   var myToken=_chatMyToken;
+  var cid=getDmConvId(getMyUid(),otherUid||_dmOtherUid);
   el.innerHTML=msgs.map(m=>{
     var isOwn=m.token===myToken;
     var col=stringColor(m.name||'?');
     var initials=(m.name||'?')[0].toUpperCase();
+    var editBtn=isOwn
+      ?'<button onclick="startDmEdit(''+cid+'',''+m._key+'',''+escAttr(m.msg)+'')" style="background:none;border:none;color:rgba(255,255,255,.3);font-size:12px;cursor:pointer;padding:0 3px" title="Edit">✎</button>'
+      :'';
+    var editedTag=m.edited?'<span style="font-size:9px;color:rgba(255,255,255,.25);margin-left:4px">(edited)</span>':'';
     return`<div class="chat-msg${isOwn?' own':''}">
       <div class="chat-avatar" style="background:linear-gradient(135deg,${col})">${initials}</div>
       <div class="chat-bubble-wrap">
         <div class="chat-name">${escHtml(m.name||'?')}</div>
-        <div class="chat-bubble-inner">${escHtml(m.msg)}</div>
-        <div class="chat-meta">${timeAgo(m.ts)}</div>
+        <div class="chat-bubble-inner" id="dmmsg-${m._key}">${escHtml(m.msg)}${editedTag}</div>
+        <div class="chat-meta">${timeAgo(m.ts)}${editBtn}</div>
       </div>
     </div>`;
   }).join('');
   el.scrollTop=el.scrollHeight;
+}
+
+// DM EDIT
+var _dmEditKey=null;
+var _dmEditConvId=null;
+
+function startDmEdit(convId,key,currentMsg){
+  _dmEditKey=key; _dmEditConvId=convId;
+  var input=document.getElementById('dm-input');
+  if(!input)return;
+  input.value=currentMsg; input.focus();
+  input.style.borderColor='rgba(239,159,39,.5)';
+  var btn=document.getElementById('dm-send-btn');
+  if(btn){btn.textContent='✓';btn.style.background='linear-gradient(135deg,#EF9F27,#BA7517)';}
+  var hint=document.getElementById('dm-edit-hint');
+  if(!hint){
+    hint=document.createElement('div');
+    hint.id='dm-edit-hint';
+    hint.style.cssText='font-size:10px;color:rgba(239,159,39,.75);padding:3px 12px;flex-shrink:0;display:flex;align-items:center;gap:4px';
+    input.closest('.chat-input-row').before(hint);
+  }
+  hint.innerHTML='Editing — <button onclick="cancelDmEdit()" style="background:none;border:none;color:rgba(239,159,39,.8);cursor:pointer;font-size:10px;text-decoration:underline;padding:0;font-family:inherit">cancel</button>';
+}
+
+function cancelDmEdit(){
+  _dmEditKey=null; _dmEditConvId=null;
+  var input=document.getElementById('dm-input');
+  if(input){input.value='';input.style.borderColor='';}
+  var btn=document.getElementById('dm-send-btn');
+  if(btn){btn.innerHTML='➤';btn.style.background='linear-gradient(135deg,#1D9E75,#0F6E56)';}
+  var hint=document.getElementById('dm-edit-hint');
+  if(hint)hint.remove();
+}
+
+function sendDmOrSaveEdit(){
+  if(_dmEditKey&&_dmEditConvId){
+    var input=document.getElementById('dm-input');
+    var newMsg=input.value.trim();
+    if(!newMsg)return;
+    db.ref('dms/'+_dmEditConvId+'/'+_dmEditKey).update({msg:newMsg,edited:true});
+    cancelDmEdit();
+  } else {
+    sendDm();
+  }
 }
 
 function sendDm(){
@@ -1490,28 +1544,69 @@ function openDmFromUser(uid,event){
   openDmConv(uid);
 }
 
-// ── WATCH DMs FOR UNREAD NOTIFICATIONS ──
+// ── WATCH DMs FOR INCOMING MESSAGES ──
+var _dmLastSeen={};
+var _dmInitialized=false;  // First snapshot just seeds timestamps, no popups
+
 db.ref('dms').on('value',snap=>{
   var data=snap.val()||{};
   var myUid=getMyUid();
+  if(!myUid)return;
   Object.entries(data).forEach(([convId,conv])=>{
     if(!convId.includes(myUid))return;
-    var otherUid=convId.split('__').find(u=>u!==myUid);
+    var parts=convId.split('__');
+    var otherUid=parts.find(function(u){return u!==myUid;});
     if(!otherUid)return;
-    var msgs=Object.values(conv).sort((a,b)=>b.ts-a.ts);
-    var latest=msgs[0];
-    if(latest&&latest.toUid===myUid&&latest.token!==_chatMyToken){
-      if(!_dmUnreads[otherUid]){
-        _dmUnreads[otherUid]=1;
-        // Update unread badge
-        var total=Object.values(_dmUnreads).reduce((a,b)=>a+b,0);
-        var badge=document.getElementById('dm-total-unread');
-        if(badge&&total>0)badge.textContent='('+total+')';
-        if(!_chatOpen){_chatUnread++;updateChatBubble();}
+    var msgs=Object.values(conv).sort(function(a,b){return a.ts-b.ts;});
+    var latest=msgs[msgs.length-1];
+    if(!latest)return;
+    var isForMe=latest.toUid===myUid&&latest.token!==_chatMyToken;
+    var isNew=!_dmLastSeen[convId]||(latest.ts>_dmLastSeen[convId]);
+    // Always update _dmLastSeen on first load (seed, no notifications)
+    if(!_dmInitialized){
+      _dmLastSeen[convId]=latest.ts;
+      return;
+    }
+    if(isForMe&&isNew){
+      _dmLastSeen[convId]=latest.ts;
+      if(!_dmUnreads[otherUid])_dmUnreads[otherUid]=0;
+      if(_dmOtherUid===otherUid&&document.getElementById('dm-conv').classList.contains('open')){
+        renderDmConv(msgs,otherUid);
+        return;
       }
+      _dmUnreads[otherUid]++;
+      var total=Object.values(_dmUnreads).reduce(function(a,b){return a+b;},0);
+      var badge=document.getElementById('dm-total-unread');
+      if(badge)badge.textContent=total>0?'('+total+')':'';
+      _chatUnread++;
+      updateChatBubble();
+      showIncomingDm(otherUid,latest.name,latest.msg);
+      if(document.getElementById('dm-panel').classList.contains('open')){renderDmUserList();}
     }
   });
+  _dmInitialized=true;
 });
+
+// ── INCOMING DM POPUP ──
+function showIncomingDm(fromUid,fromName,msgText){
+  var old=document.getElementById('incoming-dm-popup');
+  if(old)old.remove();
+  var col=stringColor(fromName||'?');
+  var initials=(fromName||'?')[0].toUpperCase();
+  var popup=document.createElement('div');
+  popup.id='incoming-dm-popup';
+  popup.style.cssText='position:fixed;bottom:90px;right:16px;z-index:9500;background:#1a2035;border:1px solid rgba(55,138,221,.4);border-radius:14px;padding:.8rem 1rem;display:flex;align-items:center;gap:10px;box-shadow:0 6px 30px rgba(0,0,0,.6);cursor:pointer;max-width:290px;animation:chatSlideUp .25s cubic-bezier(.16,1,.3,1);min-width:220px';
+  var safeFrom=escHtml(fromName||'Someone');
+  var safeMsg=escHtml(msgText||'');
+  popup.innerHTML='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,'+col+');display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initials+'</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-size:11px;color:#5BA4E5;font-weight:600;margin-bottom:2px">\u{1F4E9} DM from '+safeFrom+'</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+safeMsg+'</div></div>'
+    +'<button onclick="event.stopPropagation();document.getElementById(\'incoming-dm-popup\').remove()" style="background:none;border:none;color:rgba(255,255,255,.3);font-size:16px;cursor:pointer;flex-shrink:0">\u00D7</button>';
+  popup.addEventListener('click',function(){popup.remove();_chatOpen=true;openDmConv(fromUid);});
+  document.body.appendChild(popup);
+  setTimeout(function(){if(popup.parentNode)popup.remove();},6000);
+}
+
 
 // ── USER MODAL — add DM button + live timer ──
 var _modalTimerInt=null;
