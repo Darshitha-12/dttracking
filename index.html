@@ -1270,14 +1270,21 @@ function updateChatBubble(){
 
 // ── GROUP CHAT MESSAGES ──
 var _groupMessages=[];
+var _chatLastTs=0;
+var _chatInitDone=false;
 _chatRef.limitToLast(60).on('value',snap=>{
   var data=snap.val()||{};
-  _groupMessages=Object.entries(data).map(([k,v])=>({...v,_key:k})).sort((a,b)=>a.ts-b.ts);
+  _groupMessages=Object.entries(data).map(function(e){return Object.assign({},e[1],{_key:e[0]});}).sort(function(a,b){return a.ts-b.ts;});
   renderGroupChat();
-  if(!_chatOpen){
-    _chatUnread++;
-    updateChatBubble();
+  if(_chatInitDone&&!_chatOpen&&_groupMessages.length){
+    var latest=_groupMessages[_groupMessages.length-1];
+    if(latest&&latest.ts>_chatLastTs&&latest.token!==_chatMyToken){
+      _chatUnread++;
+      updateChatBubble();
+    }
   }
+  if(_groupMessages.length){_chatLastTs=Math.max.apply(null,_groupMessages.map(function(m){return m.ts||0;}));}
+  _chatInitDone=true;
 });
 
 function renderGroupChat(){
@@ -1398,8 +1405,11 @@ function renderDmUserList(){
     if(myName&&uname===myName)return false;
     return true;
   });
-  if(!users.length){el.innerHTML='<div class="empty" style="font-size:12px;padding:1.5rem 0">No other users yet.</div>';return;}
-  var html='';
+  if(!users.length){
+    el.innerHTML='<div class="empty" style="font-size:12px;padding:1.5rem 0">No other users yet.</div>';
+    return;
+  }
+  el.innerHTML='';
   users.forEach(function(pair){
     var uid=pair[0]; var u=pair[1];
     var name=u.profile.name||'Unknown';
@@ -1409,14 +1419,16 @@ function renderDmUserList(){
     var isOnl=u.online||isLive;
     var dotColor=isLive?'#1D9E75':isOnl?'#378ADD':'#444';
     var unread=_dmUnreads[uid]||0;
-    var unreadHtml=unread>0?'<div class="dm-unread-badge">'+unread+'</div>':'';
-    html+='<div class="dm-user-row" onclick="openDmConv(\''+uid+'\')">';
-    html+='<div class="dm-avatar" style="background:linear-gradient(135deg,'+col+')">'+initials+'<span class="dm-status-dot" style="background:'+dotColor+'"></span></div>';
-    html+='<div style="flex:1;min-width:0"><div class="dm-name">'+escHtml(name)+'</div>';
-    html+='<div class="dm-preview">'+(isLive?'📚 Studying '+escHtml(u.live.subject||''):isOnl?'🟢 Online':'⚫ Offline')+'</div></div>';
-    html+=unreadHtml+'</div>';
+    var row=document.createElement('div');
+    row.className='dm-user-row';
+    row.dataset.uid=uid;
+    row.addEventListener('click',function(){openDmConv(this.dataset.uid);});
+    var statusText=isLive?'Studying '+escHtml(u.live.subject||''):isOnl?'Online':'Offline';
+    row.innerHTML='<div class="dm-avatar" style="background:linear-gradient(135deg,'+col+')">'+initials+'<span class="dm-status-dot" style="background:'+dotColor+'"></span></div>'
+      +'<div style="flex:1;min-width:0"><div class="dm-name">'+escHtml(name)+'</div><div class="dm-preview">'+statusText+'</div></div>'
+      +(unread>0?'<div class="dm-unread-badge">'+unread+'</div>':'');
+    el.appendChild(row);
   });
-  el.innerHTML=html;
 }
 
 
