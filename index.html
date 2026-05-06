@@ -156,6 +156,83 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
 @media(max-width:500px){
   .cd-blk{min-width:36px}.cd-v{font-size:15px}
 }
+
+/* ── LIVE CHAT STYLES ── */
+#chat-bubble{position:fixed;bottom:20px;right:20px;z-index:8000;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(29,158,117,.45);transition:transform .15s}
+#chat-bubble:hover{transform:scale(1.08)}
+#chat-unread{position:absolute;top:-4px;right:-4px;background:#E24B4A;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:99px;display:none;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--bg)}
+
+#chat-panel{position:fixed;bottom:82px;right:16px;width:340px;max-height:520px;background:#111622;border:1px solid rgba(255,255,255,.12);border-radius:18px;z-index:8001;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);animation:chatSlideUp .25s cubic-bezier(.16,1,.3,1)}
+@keyframes chatSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+#chat-panel.open{display:flex}
+
+.chat-header{padding:.85rem 1rem;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.chat-header-tabs{display:flex;gap:4px}
+.chat-tab{background:none;border:none;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;padding:4px 11px;border-radius:20px;cursor:pointer;color:rgba(255,255,255,.4);transition:all .15s}
+.chat-tab.active{background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:#5DCAA5}
+.chat-close{background:none;border:none;color:rgba(255,255,255,.35);font-size:18px;cursor:pointer;padding:0;line-height:1}
+
+/* GROUP CHAT */
+#chat-messages{flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:6px;min-height:200px;max-height:300px}
+#chat-messages::-webkit-scrollbar{width:4px}
+#chat-messages::-webkit-scrollbar-track{background:transparent}
+#chat-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
+.chat-msg{display:flex;gap:7px;align-items:flex-start}
+.chat-msg.own{flex-direction:row-reverse}
+.chat-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px}
+.chat-bubble-wrap{display:flex;flex-direction:column;max-width:75%}
+.chat-msg.own .chat-bubble-wrap{align-items:flex-end}
+.chat-bubble-inner{background:rgba(255,255,255,.07);border-radius:14px 14px 14px 4px;padding:7px 11px;font-size:12.5px;color:rgba(255,255,255,.85);line-height:1.4;word-break:break-word;position:relative}
+.chat-msg.own .chat-bubble-inner{background:linear-gradient(135deg,rgba(29,158,117,.3),rgba(29,158,117,.18));border-radius:14px 14px 4px 14px}
+.chat-meta{font-size:9.5px;color:rgba(255,255,255,.25);margin-top:2px;display:flex;align-items:center;gap:4px}
+.chat-name{font-size:9.5px;color:rgba(255,255,255,.4);margin-bottom:2px;font-weight:500}
+.chat-msg.own .chat-name{text-align:right;color:rgba(29,158,117,.7)}
+.chat-ai-bubble .chat-bubble-inner{background:linear-gradient(135deg,rgba(127,119,221,.25),rgba(127,119,221,.12));border-radius:14px 14px 14px 4px}
+.chat-ai-badge{font-size:8px;background:rgba(127,119,221,.2);border:1px solid rgba(127,119,221,.3);color:#a8a3e8;padding:1px 5px;border-radius:4px}
+.typing-indicator{display:none;gap:4px;align-items:center;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:12px;width:fit-content;margin-top:2px}
+.typing-indicator.show{display:flex}
+.typing-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);animation:typingBounce .8s ease infinite}
+.typing-dot:nth-child(2){animation-delay:.15s}
+.typing-dot:nth-child(3){animation-delay:.3s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+.chat-input-row{padding:.65rem .75rem;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:6px;align-items:center;flex-shrink:0}
+.chat-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:7px 13px;font-size:12.5px;color:#f0f0f0;font-family:'DM Sans',sans-serif;outline:none}
+.chat-input:focus{border-color:rgba(29,158,117,.4)}
+.chat-send-btn{background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;border-radius:50%;width:32px;height:32px;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .12s}
+.chat-send-btn:hover{opacity:.85}
+
+/* DM PANEL */
+#dm-panel{position:fixed;bottom:82px;right:16px;width:340px;max-height:520px;background:#111622;border:1px solid rgba(255,255,255,.12);border-radius:18px;z-index:8001;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);animation:chatSlideUp .25s cubic-bezier(.16,1,.3,1)}
+#dm-panel.open{display:flex}
+#dm-user-list{flex:1;overflow-y:auto;padding:.5rem}
+.dm-user-row{display:flex;align-items:center;gap:10px;padding:.7rem .75rem;border-radius:10px;cursor:pointer;transition:background .12s;position:relative}
+.dm-user-row:hover{background:rgba(255,255,255,.05)}
+.dm-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;position:relative}
+.dm-status-dot{position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;border:2px solid #111622}
+.dm-name{font-size:13px;font-weight:500;color:#f0f0f0;flex:1}
+.dm-preview{font-size:11px;color:rgba(255,255,255,.35);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.dm-unread-badge{background:#E24B4A;color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:99px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+/* DM CONVERSATION */
+#dm-conv{position:fixed;bottom:82px;right:16px;width:340px;max-height:520px;background:#111622;border:1px solid rgba(255,255,255,.12);border-radius:18px;z-index:8002;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.6);animation:chatSlideUp .25s cubic-bezier(.16,1,.3,1)}
+#dm-conv.open{display:flex}
+.dm-conv-header{padding:.85rem 1rem;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.dm-conv-back{background:none;border:none;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer;padding:0;line-height:1;margin-right:2px}
+#dm-conv-messages{flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:6px;min-height:200px;max-height:300px}
+#dm-conv-messages::-webkit-scrollbar{width:4px}
+#dm-conv-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
+
+/* USER CARD DM BUTTON */
+.user-dm-btn{background:rgba(55,138,221,.12);border:1px solid rgba(55,138,221,.25);border-radius:7px;padding:4px 11px;color:#5BA4E5;font-size:10px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background .12s}
+.user-dm-btn:hover{background:rgba(55,138,221,.2)}
+
+/* USER MODAL LIVE TIMER */
+.modal-live-timer{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:#1D9E75;letter-spacing:.04em;text-align:center;padding:.5rem 0;font-variant-numeric:tabular-nums}
+
+@media(max-width:400px){
+  #chat-panel,#dm-panel,#dm-conv{width:calc(100vw - 24px);right:12px}
+}
 </style>
 </head>
 <body>
@@ -326,6 +403,65 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   <div class="pub-footer">
     Public view — read only · Live via Firebase
     <div class="auto-refresh"><span class="spin">↻</span> Real-time</div>
+  </div>
+</div>
+
+<!-- ── CHAT BUBBLE ── -->
+<button id="chat-bubble" onclick="toggleChatPanel()" title="Live chat">
+  💬
+  <div id="chat-unread"></div>
+</button>
+
+<!-- ── GROUP CHAT PANEL ── -->
+<div id="chat-panel">
+  <div class="chat-header">
+    <div class="chat-header-tabs">
+      <button class="chat-tab active" onclick="switchChatTab('group',this)" id="tab-group">💬 Group</button>
+      <button class="chat-tab" onclick="switchChatTab('dm',this)" id="tab-dm">📩 DMs <span id="dm-total-unread"></span></button>
+    </div>
+    <button class="chat-close" onclick="toggleChatPanel()">✕</button>
+  </div>
+  <div id="chat-messages">
+    <div class="empty" style="margin:auto">Loading messages...</div>
+  </div>
+  <div style="padding:0 .75rem .5rem;flex-shrink:0" id="ai-typing-row">
+    <div class="typing-indicator" id="ai-typing">
+      <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+      <span style="font-size:10px;color:rgba(255,255,255,.35);margin-left:4px">AI is replying...</span>
+    </div>
+  </div>
+  <div class="chat-input-row">
+    <input id="chat-input" class="chat-input" placeholder="Message the group..." maxlength="300" onkeydown="if(event.key==='Enter')sendGroupMsg()">
+    <button class="chat-send-btn" onclick="sendGroupMsg()">➤</button>
+  </div>
+</div>
+
+<!-- ── DM USER LIST ── -->
+<div id="dm-panel">
+  <div class="chat-header">
+    <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700">Direct Messages</div>
+    <button class="chat-close" onclick="closeDmPanel()">✕</button>
+  </div>
+  <div id="dm-user-list">
+    <div class="empty">Loading users...</div>
+  </div>
+</div>
+
+<!-- ── DM CONVERSATION ── -->
+<div id="dm-conv">
+  <div class="dm-conv-header">
+    <button class="dm-conv-back" onclick="closeDmConv()">‹</button>
+    <div id="dm-conv-avatar" class="dm-avatar" style="width:30px;height:30px;font-size:11px"></div>
+    <div style="flex:1;min-width:0">
+      <div id="dm-conv-name" style="font-size:13px;font-weight:600;color:#f0f0f0"></div>
+      <div id="dm-conv-status" style="font-size:10px;color:rgba(255,255,255,.35)"></div>
+    </div>
+    <button class="chat-close" onclick="closeDmConv();closeDmPanel();toggleChatPanel()" style="margin-left:auto">✕</button>
+  </div>
+  <div id="dm-conv-messages"></div>
+  <div class="chat-input-row">
+    <input id="dm-input" class="chat-input" placeholder="Send a message..." maxlength="300" onkeydown="if(event.key==='Enter')sendDm()">
+    <button class="chat-send-btn" onclick="sendDm()">➤</button>
   </div>
 </div>
 
@@ -1072,6 +1208,367 @@ function stringColor(s){
   var i=(s||'').charCodeAt(0)%colors.length;
   return colors[i][0]+','+colors[i][1];
 }
+
+// ── LIVE CHAT SYSTEM ──
+var _chatOpen=false;
+var _chatTab='group'; // 'group' or 'dm'
+var _chatMyName=localStorage.getItem('pub_name')||localStorage.getItem('st_username')||'';
+var _chatMyToken=MY_TOKEN;
+var _chatUnread=0;
+var _chatRef=db.ref('livechat');
+var _dmRef=db.ref('dms');
+var _dmOtherUid=null;
+var _dmConvRef=null;
+var _dmConvListener=null;
+var _dmUnreads={};
+
+function toggleChatPanel(){
+  _chatOpen=!_chatOpen;
+  if(_chatOpen){
+    if(_chatTab==='group'){
+      document.getElementById('chat-panel').classList.add('open');
+      document.getElementById('dm-panel').classList.remove('open');
+    } else {
+      document.getElementById('dm-panel').classList.add('open');
+      document.getElementById('chat-panel').classList.remove('open');
+    }
+    _chatUnread=0;
+    updateChatBubble();
+    setTimeout(scrollChatToBottom,100);
+  } else {
+    document.getElementById('chat-panel').classList.remove('open');
+    document.getElementById('dm-panel').classList.remove('open');
+    closeDmConv();
+  }
+}
+
+function switchChatTab(tab,el){
+  _chatTab=tab;
+  document.querySelectorAll('.chat-tab').forEach(b=>b.classList.remove('active'));
+  if(el)el.classList.add('active');
+  if(tab==='group'){
+    document.getElementById('chat-panel').classList.add('open');
+    document.getElementById('dm-panel').classList.remove('open');
+    closeDmConv();
+    scrollChatToBottom();
+  } else {
+    document.getElementById('dm-panel').classList.add('open');
+    document.getElementById('chat-panel').classList.remove('open');
+    renderDmUserList();
+  }
+}
+
+function updateChatBubble(){
+  var badge=document.getElementById('chat-unread');
+  if(_chatUnread>0){
+    badge.style.display='flex';
+    badge.textContent=_chatUnread>9?'9+':_chatUnread;
+  } else {
+    badge.style.display='none';
+  }
+}
+
+// ── GROUP CHAT MESSAGES ──
+var _groupMessages=[];
+_chatRef.limitToLast(60).on('value',snap=>{
+  var data=snap.val()||{};
+  _groupMessages=Object.entries(data).map(([k,v])=>({...v,_key:k})).sort((a,b)=>a.ts-b.ts);
+  renderGroupChat();
+  if(!_chatOpen){
+    _chatUnread++;
+    updateChatBubble();
+  }
+});
+
+function renderGroupChat(){
+  var el=document.getElementById('chat-messages');
+  if(!el)return;
+  if(!_groupMessages.length){
+    el.innerHTML='<div class="empty" style="margin:auto;font-size:12px">No messages yet — say hi! 👋</div>';
+    return;
+  }
+  var myName=_chatMyName;
+  el.innerHTML=_groupMessages.map(m=>{
+    var isOwn=m.token===_chatMyToken;
+    var isAI=m.ai===true;
+    var col=stringColor(m.name||'?');
+    var initials=(m.name||'?')[0].toUpperCase();
+    return`<div class="chat-msg${isOwn?' own':''}${isAI?' chat-ai-bubble':''}">
+      <div class="chat-avatar" style="background:linear-gradient(135deg,${isAI?'#7F77DD,#534AB7':col})">${isAI?'🤖':initials}</div>
+      <div class="chat-bubble-wrap">
+        <div class="chat-name">${escHtml(m.name||'?')}${isAI?'&nbsp;<span class="chat-ai-badge">AI</span>':''}</div>
+        <div class="chat-bubble-inner">${escHtml(m.msg)}</div>
+        <div class="chat-meta">${timeAgo(m.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom(){
+  var el=document.getElementById('chat-messages');
+  if(el)el.scrollTop=el.scrollHeight;
+}
+
+async function sendGroupMsg(){
+  var input=document.getElementById('chat-input');
+  var msg=input.value.trim();
+  if(!msg)return;
+  var name=_chatMyName||prompt('Enter your name:');
+  if(!name)return;
+  _chatMyName=name;
+  localStorage.setItem('pub_name',name);
+  input.value='';
+  var msgObj={name,msg,ts:Date.now(),token:_chatMyToken,ai:false};
+  _chatRef.push(msgObj);
+  // AI reply if message ends with ? or mentions @ai
+  if(msg.endsWith('?')||msg.toLowerCase().includes('@ai')){
+    triggerAIReply(msg,name);
+  }
+}
+
+async function triggerAIReply(userMsg,userName){
+  var aiTyping=document.getElementById('ai-typing');
+  if(aiTyping)aiTyping.classList.add('show');
+  
+  // Build context about current study session
+  var studyContext='Current group study data: ';
+  var activeUsers=Object.entries(_allUsers).filter(([,u])=>u.live&&u.live.running);
+  if(activeUsers.length){
+    studyContext+=activeUsers.map(([,u])=>u.profile.name+' is studying '+u.live.subject).join(', ')+'. ';
+  }
+  var today=todayKey();
+  var totalToday=Object.values(_allUsers).reduce((sum,u)=>{
+    return sum+(u.sessions||[]).filter(s=>s.date===today).reduce((a,s)=>a+s.duration,0);
+  },0);
+  studyContext+='Total group study today: '+fmtSec(totalToday)+'. A/L exam: August 10, 2026.';
+
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:200,
+        system:'You are a friendly AI study assistant in a live study group chat for A/L (Advanced Level) students in Sri Lanka preparing for August 2026 exams. Keep replies short (1-3 sentences), encouraging, and helpful. '+studyContext,
+        messages:[{role:'user',content:userName+' asks: '+userMsg}]
+      })
+    });
+    var data=await resp.json();
+    var aiMsg=data.content&&data.content[0]&&data.content[0].text;
+    if(aiMsg){
+      setTimeout(()=>{
+        _chatRef.push({name:'Study AI',msg:aiMsg,ts:Date.now(),token:'ai_bot',ai:true});
+        if(aiTyping)aiTyping.classList.remove('show');
+      },800);
+    } else {
+      if(aiTyping)aiTyping.classList.remove('show');
+    }
+  }catch(e){
+    if(aiTyping)aiTyping.classList.remove('show');
+  }
+}
+
+// ── DM SYSTEM ──
+function getDmConvId(uid1,uid2){
+  return [uid1,uid2].sort().join('__');
+}
+
+function closeDmPanel(){
+  document.getElementById('dm-panel').classList.remove('open');
+}
+function closeDmConv(){
+  document.getElementById('dm-conv').classList.remove('open');
+  if(_dmConvListener&&_dmConvRef){_dmConvRef.off('value',_dmConvListener);_dmConvListener=null;}
+  _dmOtherUid=null;
+}
+
+function getMyUid(){
+  return _pubUserId||('user_'+(_chatMyName||'unknown').trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,''));
+}
+
+function renderDmUserList(){
+  var el=document.getElementById('dm-user-list');
+  var users=Object.entries(_allUsers).filter(([uid])=>uid!==getMyUid());
+  if(!users.length){el.innerHTML='<div class="empty" style="font-size:12px;padding:1.5rem 0">No other users yet.</div>';return;}
+  
+  el.innerHTML=users.map(([uid,u])=>{
+    var name=u.profile.name||'Unknown';
+    var col=stringColor(name);
+    var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    var isLive=u.live&&u.live.running;
+    var isOnl=u.online||isLive;
+    var dotColor=isLive?'#1D9E75':isOnl?'#378ADD':'#444';
+    var unread=_dmUnreads[uid]||0;
+    var convId=getDmConvId(getMyUid(),uid);
+    return`<div class="dm-user-row" onclick="openDmConv('${uid}')">
+      <div class="dm-avatar" style="background:linear-gradient(135deg,${col})">
+        ${initials}
+        <span class="dm-status-dot" style="background:${dotColor}"></span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="dm-name">${escHtml(name)}</div>
+        <div class="dm-preview">${isLive?'📚 Studying '+escHtml(u.live.subject||''):isOnl?'Online':'Offline'}</div>
+      </div>
+      ${unread>0?`<div class="dm-unread-badge">${unread}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function openDmConv(uid){
+  _dmOtherUid=uid;
+  var u=_allUsers[uid];
+  var name=(u&&u.profile&&u.profile.name)||'Unknown';
+  var col=stringColor(name);
+  var initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  var isLive=u&&u.live&&u.live.running;
+  var isOnl=u&&u.online;
+
+  document.getElementById('dm-conv-avatar').style.background='linear-gradient(135deg,'+col+')';
+  document.getElementById('dm-conv-avatar').textContent=initials;
+  document.getElementById('dm-conv-name').textContent=name;
+  document.getElementById('dm-conv-status').textContent=isLive?'🟢 Studying '+escHtml(u.live.subject||''):isOnl?'🔵 Online':'⚫ Offline';
+  document.getElementById('dm-conv').classList.add('open');
+  document.getElementById('dm-panel').classList.remove('open');
+
+  // Listen to this DM conversation
+  if(_dmConvListener&&_dmConvRef){_dmConvRef.off('value',_dmConvListener);_dmConvListener=null;}
+  var convId=getDmConvId(getMyUid(),uid);
+  _dmConvRef=db.ref('dms/'+convId);
+  _dmConvListener=_dmConvRef.limitToLast(50).on('value',snap=>{
+    var data=snap.val()||{};
+    var msgs=Object.entries(data).map(([k,v])=>({...v,_key:k})).sort((a,b)=>a.ts-b.ts);
+    renderDmConv(msgs,uid);
+    // Mark read
+    _dmUnreads[uid]=0;
+    renderDmUserList();
+  });
+}
+
+function renderDmConv(msgs,otherUid){
+  var el=document.getElementById('dm-conv-messages');
+  if(!el)return;
+  el.style.cssText='flex:1;overflow-y:auto;padding:.75rem;display:flex;flex-direction:column;gap:6px;min-height:200px;max-height:300px';
+  if(!msgs.length){
+    el.innerHTML='<div class="empty" style="margin:auto;font-size:12px">No messages yet — send one! 👋</div>';
+    return;
+  }
+  var myToken=_chatMyToken;
+  el.innerHTML=msgs.map(m=>{
+    var isOwn=m.token===myToken;
+    var col=stringColor(m.name||'?');
+    var initials=(m.name||'?')[0].toUpperCase();
+    return`<div class="chat-msg${isOwn?' own':''}">
+      <div class="chat-avatar" style="background:linear-gradient(135deg,${col})">${initials}</div>
+      <div class="chat-bubble-wrap">
+        <div class="chat-name">${escHtml(m.name||'?')}</div>
+        <div class="chat-bubble-inner">${escHtml(m.msg)}</div>
+        <div class="chat-meta">${timeAgo(m.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function sendDm(){
+  if(!_dmOtherUid)return;
+  var input=document.getElementById('dm-input');
+  var msg=input.value.trim();
+  if(!msg)return;
+  var name=_chatMyName||localStorage.getItem('pub_name')||localStorage.getItem('st_username')||'Anonymous';
+  input.value='';
+  var convId=getDmConvId(getMyUid(),_dmOtherUid);
+  db.ref('dms/'+convId).push({name,msg,ts:Date.now(),token:_chatMyToken,fromUid:getMyUid(),toUid:_dmOtherUid});
+}
+
+// Open DM from user card button
+function openDmFromUser(uid,event){
+  if(event)event.stopPropagation();
+  _chatOpen=true;
+  _chatTab='dm';
+  document.getElementById('chat-panel').classList.remove('open');
+  openDmConv(uid);
+}
+
+// ── WATCH DMs FOR UNREAD NOTIFICATIONS ──
+db.ref('dms').on('value',snap=>{
+  var data=snap.val()||{};
+  var myUid=getMyUid();
+  Object.entries(data).forEach(([convId,conv])=>{
+    if(!convId.includes(myUid))return;
+    var otherUid=convId.split('__').find(u=>u!==myUid);
+    if(!otherUid)return;
+    var msgs=Object.values(conv).sort((a,b)=>b.ts-a.ts);
+    var latest=msgs[0];
+    if(latest&&latest.toUid===myUid&&latest.token!==_chatMyToken){
+      if(!_dmUnreads[otherUid]){
+        _dmUnreads[otherUid]=1;
+        // Update unread badge
+        var total=Object.values(_dmUnreads).reduce((a,b)=>a+b,0);
+        var badge=document.getElementById('dm-total-unread');
+        if(badge&&total>0)badge.textContent='('+total+')';
+        if(!_chatOpen){_chatUnread++;updateChatBubble();}
+      }
+    }
+  });
+});
+
+// ── USER MODAL — add DM button + live timer ──
+var _modalTimerInt=null;
+var _origOpenUserModal=openUserModal;
+openUserModal=function(uid){
+  _origOpenUserModal(uid);
+  var u=_allUsers[uid];
+  if(!u)return;
+  // Add DM button to modal if not own user
+  if(uid!==getMyUid()){
+    var nameEl=document.getElementById('m-name');
+    if(nameEl&&!document.getElementById('m-dm-btn')){
+      var dmBtn=document.createElement('button');
+      dmBtn.id='m-dm-btn';
+      dmBtn.className='user-dm-btn';
+      dmBtn.textContent='✉ DM';
+      dmBtn.onclick=function(){closeUserModal();openDmFromUser(uid,null);};
+      nameEl.parentNode.insertBefore(dmBtn,nameEl.nextSibling);
+    } else if(document.getElementById('m-dm-btn')){
+      document.getElementById('m-dm-btn').onclick=function(){closeUserModal();openDmFromUser(uid,null);};
+    }
+  }
+  // Live timer in modal
+  var statusEl=document.getElementById('m-status');
+  var existingTimer=document.getElementById('m-live-timer');
+  if(existingTimer)existingTimer.remove();
+  clearInterval(_modalTimerInt);
+  var isLive=u.live&&u.live.running;
+  if(isLive&&statusEl){
+    var timerDiv=document.createElement('div');
+    timerDiv.id='m-live-timer';
+    timerDiv.className='modal-live-timer';
+    timerDiv.textContent=fmt(getLiveElapsedForUser(uid));
+    statusEl.parentNode.insertBefore(timerDiv,statusEl.nextSibling);
+    _modalTimerInt=setInterval(()=>{
+      if(!_openModalUid)return clearInterval(_modalTimerInt);
+      timerDiv.textContent=fmt(getLiveElapsedForUser(_openModalUid));
+    },500);
+  }
+};
+
+// Override closeUserModal to clear timer
+var _origCloseUserModal=closeUserModal;
+closeUserModal=function(){
+  clearInterval(_modalTimerInt);
+  var t=document.getElementById('m-live-timer');
+  if(t)t.remove();
+  var d=document.getElementById('m-dm-btn');
+  if(d)d.remove();
+  _origCloseUserModal();
+};
+
+// ── NAME AUTO-FILL for chat ──
+window.addEventListener('DOMContentLoaded',()=>{
+  var n=localStorage.getItem('pub_name')||localStorage.getItem('st_username');
+  if(n)_chatMyName=n;
+});
 </script>
 </body>
 </html>
