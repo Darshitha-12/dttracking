@@ -1477,7 +1477,7 @@ function renderDmConv(msgs,otherUid){
     var col=stringColor(m.name||'?');
     var initials=(m.name||'?')[0].toUpperCase();
     var editBtn=isOwn
-      ?'<button onclick="startDmEdit(''+cid+'',''+m._key+'',''+escAttr(m.msg)+'')" style="background:none;border:none;color:rgba(255,255,255,.3);font-size:12px;cursor:pointer;padding:0 3px" title="Edit">✎</button>'
+      ?'<button data-cid="'+cid+'" data-key="'+m._key+'" data-msg="'+escAttr(m.msg)+'" onclick="var b=this;startDmEdit(b.dataset.cid,b.dataset.key,b.dataset.msg)" style="background:none;border:none;color:rgba(255,255,255,.3);font-size:12px;cursor:pointer;padding:0 3px" title="Edit">✎</button>'
       :'';
     var editedTag=m.edited?'<span style="font-size:9px;color:rgba(255,255,255,.25);margin-left:4px">(edited)</span>':'';
     return`<div class="chat-msg${isOwn?' own':''}">
