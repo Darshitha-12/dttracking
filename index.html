@@ -157,6 +157,17 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   .cd-blk{min-width:36px}.cd-v{font-size:15px}
 }
 
+
+/* ── HEART RAIN ── */
+#heart-rain-canvas{position:fixed;inset:0;pointer-events:none;z-index:9990;overflow:hidden;}
+.rain-heart{position:absolute;top:-60px;pointer-events:none;user-select:none;animation:heartFall linear forwards;}
+@keyframes heartFall{
+  0%  {transform:translateY(0)     rotate(var(--r)) scale(var(--s));opacity:0;}
+  8%  {opacity:var(--op);}
+  85% {opacity:var(--op);}
+  100%{transform:translateY(calc(100vh + 80px)) rotate(calc(var(--r) + var(--spin))) scale(var(--s));opacity:0;}
+}
+
 /* ── LIVE CHAT STYLES ── */
 #chat-bubble{position:fixed;bottom:20px;right:20px;z-index:8000;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(29,158,117,.45);transition:transform .15s}
 #chat-bubble:hover{transform:scale(1.08)}
@@ -1671,6 +1682,94 @@ closeUserModal=function(){
   _origCloseUserModal();
 };
 
+// ── CONTINUOUS HEART RAIN ──
+(function(){
+  var EMOJIS=['❤️','🧡','💛','💚','💙','💜','🤍','💖','💗','💓','💕','🩷','🩶','🩵'];
+  var INTERVAL_MS = 320;   // one heart every ~320ms
+  var SYNC_EVERY  = 8000;  // push a seed to Firebase every 8s so other screen stays in sync
+  var _rainRef    = db.ref('heartrain');
+  var _lastSync   = 0;
+
+  // Create container
+  var canvas = document.createElement('div');
+  canvas.id  = 'heart-rain-canvas';
+  document.body.appendChild(canvas);
+
+  // Spawn one falling heart
+  function spawnHeart(xPct, emoji, dur, size, op, rot, spin){
+    var h    = document.createElement('div');
+    h.className = 'rain-heart';
+    h.textContent = emoji;
+    h.style.left  = xPct + '%';
+    h.style.fontSize = size + 'px';
+    h.style.setProperty('--r',    rot  + 'deg');
+    h.style.setProperty('--spin', spin + 'deg');
+    h.style.setProperty('--s',    '1');
+    h.style.setProperty('--op',   op);
+    h.style.animationDuration = dur + 's';
+    canvas.appendChild(h);
+    h.addEventListener('animationend', function(){ h.remove(); });
+  }
+
+  // Local rain loop
+  function localRain(){
+    var x     = Math.random() * 100;
+    var emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+    var dur   = 4.5 + Math.random() * 4;
+    var size  = 18 + Math.random() * 22;
+    var op    = (0.45 + Math.random() * 0.45).toFixed(2);
+    var rot   = -25 + Math.random() * 50;
+    var spin  = -40 + Math.random() * 80;
+    spawnHeart(x, emoji, dur, size, op, rot, spin);
+
+    // Occasionally push to Firebase so second screen syncs
+    var now = Date.now();
+    if(now - _lastSync > SYNC_EVERY){
+      _lastSync = now;
+      _rainRef.push({ts: now, x: x, emoji: emoji, dur: dur, size: size, op: op, rot: rot, spin: spin});
+      // Keep Firebase clean — delete entries older than 20s
+      _rainRef.orderByChild('ts').endAt(now - 20000).once('value', function(snap){
+        snap.forEach(function(c){ c.ref.remove(); });
+      });
+    }
+  }
+
+  // Start local rain immediately
+  var _rainTimer = setInterval(localRain, INTERVAL_MS);
+  // Also do a small burst on load for immediate visual
+  for(var i=0;i<6;i++){
+    (function(idx){
+      setTimeout(function(){
+        spawnHeart(
+          Math.random()*100,
+          EMOJIS[Math.floor(Math.random()*EMOJIS.length)],
+          4+Math.random()*4, 18+Math.random()*22,
+          (0.45+Math.random()*0.45).toFixed(2),
+          -25+Math.random()*50, -40+Math.random()*80
+        );
+      }, idx * 200);
+    })(i);
+  }
+
+  // Listen for remote hearts (from other screen's syncs)
+  var _seenKeys = {};
+  _rainRef.on('child_added', function(snap){
+    var key  = snap.key;
+    var data = snap.val();
+    if(!data || _seenKeys[key]) return;
+    _seenKeys[key] = true;
+    // Skip if older than 12s (stale)
+    if(Date.now() - data.ts > 12000) return;
+    // Spawn on this screen too — offset X slightly so they don't overlap exactly
+    var xOffset = (Math.random() - 0.5) * 8;
+    spawnHeart(
+      Math.max(0, Math.min(99, data.x + xOffset)),
+      data.emoji, data.dur, data.size, data.op, data.rot, data.spin
+    );
+  });
+
+})();
+
 // ── NAME AUTO-FILL for chat ──
 window.addEventListener('DOMContentLoaded',()=>{
   var n=localStorage.getItem('pub_name')||localStorage.getItem('st_username');
@@ -1679,3 +1778,4 @@ window.addEventListener('DOMContentLoaded',()=>{
 </script>
 </body>
 </html>
+<!-- will be replaced -->
