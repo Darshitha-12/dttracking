@@ -168,6 +168,41 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   100%{transform:translateY(calc(100vh + 80px)) rotate(calc(var(--r) + var(--spin))) scale(var(--s));opacity:0;}
 }
 
+/* ── LIVE CHAT (YouTube style) ── */
+#live-chat-wrap{position:fixed;bottom:0;right:0;width:300px;height:100vh;z-index:7000;display:flex;flex-direction:column;pointer-events:none;}
+#live-chat-feed{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:0 8px 8px 8px;gap:0;}
+#live-chat-input-area{pointer-events:all;background:rgba(10,14,26,.92);border-top:1px solid rgba(255,255,255,.07);padding:8px 10px;display:flex;gap:7px;align-items:center;backdrop-filter:blur(12px);}
+#live-chat-input{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:7px 13px;font-size:12.5px;color:#f0f0f0;font-family:'DM Sans',sans-serif;outline:none;}
+#live-chat-input:focus{border-color:rgba(29,158,117,.5);}
+#live-chat-send{background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;border-radius:50%;width:32px;height:32px;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+#live-chat-send:hover{opacity:.85;}
+
+/* Individual chat message */
+.lc-msg{pointer-events:all;display:flex;align-items:flex-start;gap:6px;padding:3px 6px 3px 4px;border-radius:8px;animation:lcSlideIn .25s cubic-bezier(.16,1,.3,1);max-width:100%;transition:background .12s;}
+.lc-msg:hover{background:rgba(255,255,255,.05);}
+@keyframes lcSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.lc-avatar{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px;}
+.lc-body{flex:1;min-width:0;}
+.lc-name{font-size:11px;font-weight:600;display:inline;margin-right:5px;}
+.lc-text{font-size:12px;color:rgba(255,255,255,.85);display:inline;word-break:break-word;line-height:1.4;}
+.lc-ai .lc-name{color:#a8a3e8;}
+.lc-ai .lc-text{color:rgba(200,198,255,.85);}
+.lc-own .lc-name{/* own name color set inline */}
+
+/* Collapsed toggle */
+#live-chat-toggle{position:fixed;bottom:80px;right:8px;z-index:7001;background:rgba(10,14,26,.85);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:5px 11px;font-size:11px;color:rgba(255,255,255,.6);cursor:pointer;backdrop-filter:blur(8px);display:flex;align-items:center;gap:5px;pointer-events:all;}
+#live-chat-toggle:hover{background:rgba(29,158,117,.15);border-color:rgba(29,158,117,.3);color:#5DCAA5;}
+#lc-unread-dot{width:7px;height:7px;border-radius:50%;background:#E24B4A;display:none;}
+
+/* Hide old chat panel since we replaced it */
+#chat-panel{display:none!important;}
+
+/* Responsive — on narrow screens make chat thinner */
+@media(max-width:700px){
+  #live-chat-wrap{width:100%;height:auto;top:auto;bottom:0;max-height:45vh;}
+  #live-chat-feed{max-height:calc(45vh - 52px);}
+}
+
 /* ── LIVE CHAT STYLES ── */
 #chat-bubble{position:fixed;bottom:20px;right:20px;z-index:8000;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1D9E75,#0F6E56);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(29,158,117,.45);transition:transform .15s}
 #chat-bubble:hover{transform:scale(1.08)}
@@ -423,29 +458,20 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   <div id="chat-unread"></div>
 </button>
 
-<!-- ── GROUP CHAT PANEL ── -->
-<div id="chat-panel">
-  <div class="chat-header">
-    <div class="chat-header-tabs">
-      <button class="chat-tab active" onclick="switchChatTab('group',this)" id="tab-group">💬 Group</button>
-      <button class="chat-tab" onclick="switchChatTab('dm',this)" id="tab-dm">📩 DMs <span id="dm-total-unread"></span></button>
-    </div>
-    <button class="chat-close" onclick="toggleChatPanel()">✕</button>
-  </div>
-  <div id="chat-messages">
-    <div class="empty" style="margin:auto">Loading messages...</div>
-  </div>
-  <div style="padding:0 .75rem .5rem;flex-shrink:0" id="ai-typing-row">
-    <div class="typing-indicator" id="ai-typing">
-      <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
-      <span style="font-size:10px;color:rgba(255,255,255,.35);margin-left:4px">AI is replying...</span>
-    </div>
-  </div>
-  <div class="chat-input-row">
-    <input id="chat-input" class="chat-input" placeholder="Message the group..." maxlength="300" onkeydown="if(event.key==='Enter')sendGroupMsg()">
-    <button class="chat-send-btn" onclick="sendGroupMsg()">➤</button>
+<!-- ── LIVE CHAT (YouTube/FB style) ── -->
+<div id="live-chat-wrap" style="display:flex">
+  <div id="live-chat-feed"></div>
+  <div id="live-chat-input-area">
+    <input id="live-chat-input" placeholder="Say something..." maxlength="200"
+      onkeydown="if(event.key==='Enter')lcSend()">
+    <button id="live-chat-send" onclick="lcSend()">➤</button>
   </div>
 </div>
+<button id="live-chat-toggle" onclick="lcToggle()">
+  <span id="lc-unread-dot"></span>
+  💬 <span id="lc-toggle-label">Chat</span>
+</button>
+
 
 <!-- ── DM USER LIST ── -->
 <div id="dm-panel">
@@ -1767,6 +1793,135 @@ closeUserModal=function(){
       data.emoji, data.dur, data.size, data.op, data.rot, data.spin
     );
   });
+
+})();
+
+// ── LIVE CHAT (YouTube / FB style) ──
+(function(){
+
+var LC_COLORS = [
+  '#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF6FD8',
+  '#00C9A7','#FFA45B','#A29BFE','#55EFC4','#FDCB6E',
+  '#E17055','#74B9FF','#81ECEC','#FAB1A0','#B2BEC3'
+];
+var LC_MAX_MSGS   = 60;   // max messages kept in DOM
+var LC_VISIBLE    = true;
+var LC_UNREAD     = 0;
+var _lcRef        = db.ref('livechat');
+var _lcInitDone   = false;
+var _lcLastTs     = 0;
+var _lcMsgCount   = 0;
+var _lcUserColor  = {};   // uid/name → color
+
+function lcGetColor(name) {
+  if (!_lcUserColor[name]) {
+    _lcUserColor[name] = LC_COLORS[Object.keys(_lcUserColor).length % LC_COLORS.length];
+  }
+  return _lcUserColor[name];
+}
+
+// ── RENDER a single message into the feed ──
+function lcAppendMsg(msg) {
+  var feed = document.getElementById('live-chat-feed');
+  if (!feed) return;
+
+  var isOwn = msg.token === _chatMyToken;
+  var isAI  = msg.ai === true;
+  var name  = msg.name || '?';
+  var color = isAI ? '#a8a3e8' : lcGetColor(name);
+  var initials = name[0].toUpperCase();
+  var cls   = 'lc-msg' + (isAI ? ' lc-ai' : '') + (isOwn ? ' lc-own' : '');
+
+  var row = document.createElement('div');
+  row.className = cls;
+  row.innerHTML =
+    '<div class="lc-avatar" style="background:'+color+'22;border:1px solid '+color+'55;color:'+color+'">'+initials+'</div>' +
+    '<div class="lc-body">' +
+      '<span class="lc-name" style="color:'+color+'">'+escHtml(name)+(isAI?' <span style="font-size:9px;background:rgba(127,119,221,.2);border:1px solid rgba(127,119,221,.3);border-radius:4px;padding:1px 4px;vertical-align:middle">AI</span>':'')+'</span>' +
+      '<span class="lc-text">'+escHtml(msg.msg)+'</span>' +
+    '</div>';
+
+  feed.appendChild(row);
+  _lcMsgCount++;
+
+  // Keep DOM lean — remove oldest if over limit
+  var rows = feed.querySelectorAll('.lc-msg');
+  if (rows.length > LC_MAX_MSGS) rows[0].remove();
+
+  // Auto-scroll to bottom
+  feed.scrollTop = feed.scrollHeight;
+
+  // Unread badge if hidden
+  if (!LC_VISIBLE) {
+    LC_UNREAD++;
+    var dot = document.getElementById('lc-unread-dot');
+    var lbl = document.getElementById('lc-toggle-label');
+    if (dot) dot.style.display = 'block';
+    if (lbl) lbl.textContent = 'Chat (' + LC_UNREAD + ')';
+  }
+}
+
+// ── FIREBASE listener ──
+_lcRef.limitToLast(40).on('value', function(snap) {
+  if (!_lcInitDone) {
+    // First load: seed all existing messages
+    var feed = document.getElementById('live-chat-feed');
+    if (feed) feed.innerHTML = '';
+    var items = [];
+    snap.forEach(function(c){ items.push(Object.assign({}, c.val(), {_key: c.key})); });
+    items.sort(function(a,b){return a.ts - b.ts;});
+    items.forEach(lcAppendMsg);
+    if (items.length) _lcLastTs = items[items.length-1].ts;
+    _lcInitDone = true;
+    return;
+  }
+});
+
+// Listen for NEW messages only (child_added after init)
+_lcRef.on('child_added', function(snap) {
+  if (!_lcInitDone) return;
+  var msg = Object.assign({}, snap.val(), {_key: snap.key});
+  if (msg.ts <= _lcLastTs) return;
+  _lcLastTs = msg.ts;
+  lcAppendMsg(msg);
+});
+
+// ── SEND message ──
+window.lcSend = function() {
+  var input = document.getElementById('live-chat-input');
+  var text  = input ? input.value.trim() : '';
+  if (!text) return;
+  var name = _chatMyName || localStorage.getItem('pub_name') || localStorage.getItem('st_username') || '';
+  if (!name) {
+    name = prompt('Enter your name to chat:');
+    if (!name) return;
+    _chatMyName = name;
+    localStorage.setItem('pub_name', name);
+  }
+  input.value = '';
+  var msgObj = {name: name, msg: text, ts: Date.now(), token: _chatMyToken, ai: false};
+  _lcRef.push(msgObj);
+  // AI reply on question
+  if (text.endsWith('?') || text.toLowerCase().indexOf('@ai') >= 0) {
+    triggerAIReply(text, name);
+  }
+};
+
+// ── TOGGLE show/hide ──
+window.lcToggle = function() {
+  var wrap  = document.getElementById('live-chat-wrap');
+  var label = document.getElementById('lc-toggle-label');
+  var dot   = document.getElementById('lc-unread-dot');
+  LC_VISIBLE = !LC_VISIBLE;
+  if (wrap) wrap.style.display = LC_VISIBLE ? 'flex' : 'none';
+  LC_UNREAD = 0;
+  if (dot)   dot.style.display   = 'none';
+  if (label) label.textContent   = 'Chat';
+  if (LC_VISIBLE) {
+    var feed = document.getElementById('live-chat-feed');
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  }
+};
 
 })();
 
