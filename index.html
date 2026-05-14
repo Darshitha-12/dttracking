@@ -578,7 +578,7 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
 
   <!-- STUDY CAM STRIP (below who's studying) -->
   <div id="cam-strip" style="display:none;margin-bottom:1rem">
-    <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(29,158,117,.55);margin-bottom:6px">📷 Live cams</div>
+    <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(29,158,117,.55);margin-bottom:6px">📷 Live cams — <span id="cam-count" style="color:rgba(55,138,221,.7)">0 online</span></div>
     <div id="cam-strip-inner" style="display:flex;gap:8px;flex-wrap:wrap"></div>
   </div>
 
@@ -2078,138 +2078,387 @@ window.dtDelete=function(dk,tid){
   _dtRef.child(dk).child(tid).remove();
 };
 
-// ── CAMERA ──
-var _camStream=null;
-var _camUserName='';
+// ══ WebRTC MULTI-USER CAMERA SHARING ══
+// Architecture:
+//   Firebase db/camPresence/{userId} → {name, on, ts}
+//   Firebase db/camSignal/{toId}/{fromId} → {offer/answer/ice}
+//   WebRTC peer connections: _peers[peerId] = RTCPeerConnection
+
+var _camStream = null;
+var _camMode = null;
+var _camUserId = _pubUserId || ('cam_' + Math.random().toString(36).slice(2,9));
+var _camUserName2 = '';
+var _peers = {};           // peerId → RTCPeerConnection
+var _remoteStreams = {};   // peerId → MediaStream
+var _camPresRef = db.ref('camPresence');
+var _camSigRef  = db.ref('camSignal');
+var _myCamPresRef = null;
+var _mySigListener = null;
+
+var ICE_SERVERS = {
+  iceServers: [
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'}
+  ]
+};
 
 function getCamDisplayName(){
-  var nameEl=document.getElementById('c-name');
-  var saved=localStorage.getItem('pub_chat_name')||localStorage.getItem('pub_name')||'';
-  return (nameEl&&nameEl.value.trim())||saved||'You';
+  var nameEl = document.getElementById('c-name');
+  var saved = localStorage.getItem('pub_chat_name')||localStorage.getItem('pub_name')||'';
+  return (nameEl&&nameEl.value.trim())||saved||'Viewer';
 }
 
-window.startCam=function(mode){
+// ── Start camera ──
+window.startCam = function(mode){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    var e=document.getElementById('cam-error-msg');
-    if(e){e.textContent='Camera not supported on this browser.';e.style.display='block';}
-    return;
+    showCamError({name:'NotSupportedError'});return;
   }
-
-  // IMPORTANT: 'back' (laptop/webcam) must NOT use facingMode at all —
-  // on Windows, facingMode:'environment' triggers the phone camera app via Link to Windows.
-  // Use plain {video:true} for webcam so the browser picks the default camera directly.
-  var constraints;
-  if(mode==='back'){
-    constraints={video:true,audio:false};          // plain — browser default camera (webcam)
-  } else {
-    constraints={video:{facingMode:'user'},audio:false};  // mobile front cam
-  }
+  var constraints = (mode==='back')
+    ? {video:true,audio:false}
+    : {video:{facingMode:'user'},audio:false};
 
   function applyStream(stream){
-    _camStream=stream;
-    var vid=document.getElementById('cam-video');
-    if(!vid)return;
-    vid.srcObject=null;
-    vid.srcObject=stream;
-    // Mirror only for explicit front/selfie mode
-    vid.style.transform=(mode==='front')?'scaleX(-1)':'none';
-    vid.onloadedmetadata=function(){
-      vid.play().catch(function(){});
-      document.getElementById('cam-off-ui').style.display='none';
-      document.getElementById('cam-on-ui').style.display='block';
-      _camUserName=getCamDisplayName();
-      var overlay=document.getElementById('cam-name-overlay');
-      if(overlay)overlay.textContent=_camUserName;
-      var errEl=document.getElementById('cam-error-msg');
-      if(errEl)errEl.style.display='none';
-      updateCamStrip();
-    };
+    _camStream = stream;
+    _camMode   = mode;
+    var vid = document.getElementById('cam-video');
+    if(vid){
+      vid.srcObject = stream;
+      vid.style.transform = (mode==='front')?'scaleX(-1)':'none';
+      vid.onloadedmetadata = function(){ vid.play().catch(function(){}); };
+    }
+    document.getElementById('cam-off-ui').style.display='none';
+    document.getElementById('cam-on-ui').style.display='block';
+    var errEl=document.getElementById('cam-error-msg');
+    if(errEl)errEl.style.display='none';
+
+    _camUserName2 = getCamDisplayName();
+    var ov = document.getElementById('cam-name-overlay');
+    if(ov) ov.textContent = _camUserName2;
+
+    // Announce presence
+    _myCamPresRef = _camPresRef.child(_camUserId);
+    _myCamPresRef.set({name:_camUserName2, on:true, ts:Date.now()});
+    _myCamPresRef.onDisconnect().update({on:false, ts:Date.now()});
+
+    // Listen for incoming signals (offers from others)
+    startSignalListener();
+    // Connect to all currently live cams
+    connectToExistingCams();
+    updateCamStrip();
   }
 
   navigator.mediaDevices.getUserMedia(constraints)
     .then(applyStream)
     .catch(function(err){
-      // If front-cam constraint failed, retry without facingMode
       if(mode==='front'&&(err.name==='OverconstrainedError'||err.name==='NotFoundError')){
-        navigator.mediaDevices.getUserMedia({video:true,audio:false})
-          .then(applyStream)
-          .catch(function(err2){showCamError(err2);});
+        navigator.mediaDevices.getUserMedia({video:true,audio:false}).then(applyStream).catch(showCamError);
         return;
       }
       showCamError(err);
     });
 };
 
-function showCamError(err){
-  var msg='';
-  if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){
-    msg='⚠ Camera access denied. Click the camera icon in the browser address bar and allow access, then try again.';
-  } else if(err.name==='NotFoundError'){
-    msg='No camera found on this device.';
-  } else if(err.name==='NotReadableError'||err.name==='AbortError'){
-    msg='Camera is busy (another app is using it). Close it and retry.';
-  } else {
-    msg='Camera error: '+(err.message||err.name);
-  }
-  var e=document.getElementById('cam-error-msg');
-  if(e){e.textContent=msg;e.style.display='block';}
-}
+// ── Stop camera ──
+window.stopCam = function(){
+  // Close all peer connections
+  Object.keys(_peers).forEach(closePeer);
 
-window.stopCam=function(){
   if(_camStream){
     _camStream.getTracks().forEach(function(t){t.stop();});
-    _camStream=null;
+    _camStream = null;
   }
+  if(_myCamPresRef) _myCamPresRef.update({on:false,ts:Date.now()});
+  if(_mySigListener){ _camSigRef.child(_camUserId).off(); _mySigListener=null; }
+
   var vid=document.getElementById('cam-video');
-  if(vid){vid.srcObject=null;vid.onloadedmetadata=null;}
+  if(vid){vid.srcObject=null;}
   document.getElementById('cam-off-ui').style.display='block';
   document.getElementById('cam-on-ui').style.display='none';
   updateCamStrip();
 };
 
-// Cam strip (below who's studying now) — shows local video thumbnail
-function updateCamStrip(){
-  var strip=document.getElementById('cam-strip');
-  var inner=document.getElementById('cam-strip-inner');
-  if(!strip||!inner)return;
-  if(!_camStream){
-    // Remove own cam tile if exists
-    var own=document.getElementById('cam-tile-own');
-    if(own)own.remove();
-    if(!inner.children.length)strip.style.display='none';
-    return;
+// ── Peer connection helpers ──
+function createPeer(peerId, initiator){
+  if(_peers[peerId]) closePeer(peerId);
+
+  var pc = new RTCPeerConnection(ICE_SERVERS);
+  _peers[peerId] = pc;
+
+  // Add local tracks
+  if(_camStream){
+    _camStream.getTracks().forEach(function(t){ pc.addTrack(t, _camStream); });
   }
-  strip.style.display='block';
-  var existing=document.getElementById('cam-tile-own');
-  if(!existing){
-    var tile=document.createElement('div');
-    tile.id='cam-tile-own';
-    tile.style.cssText='position:relative;width:160px;height:120px;border-radius:12px;overflow:hidden;background:#000;border:1.5px solid rgba(29,158,117,.5);box-shadow:0 0 16px rgba(29,158,117,.2)';
-    var v2=document.createElement('video');
-    v2.autoplay=true;v2.playsInline=true;v2.muted=true;
-    v2.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
-    var vid=document.getElementById('cam-video');
-    if(vid&&vid.srcObject)v2.srcObject=vid.srcObject;
-    var mirror=document.getElementById('cam-video');
-    if(mirror)v2.style.transform=mirror.style.transform;
-    var nameTag=document.createElement('div');
-    nameTag.style.cssText='position:absolute;bottom:3px;left:4px;background:rgba(0,0,0,.7);border-radius:4px;padding:1px 5px;font-size:9px;color:#fff;font-weight:600';
-    nameTag.textContent=_camUserName||'You';
-    var liveDot=document.createElement('div');
-    liveDot.style.cssText='position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:#E24B4A;box-shadow:0 0 8px rgba(226,75,74,.9),0 0 0 2px rgba(226,75,74,.3);animation:liveDotPulse 1.2s ease-in-out infinite';
-    tile.appendChild(v2);tile.appendChild(nameTag);tile.appendChild(liveDot);
-    inner.appendChild(tile);
+
+  // Remote stream
+  var remoteStream = new MediaStream();
+  _remoteStreams[peerId] = remoteStream;
+  pc.ontrack = function(e){
+    e.streams[0].getTracks().forEach(function(t){ remoteStream.addTrack(t); });
+    updateCamStrip();
+  };
+
+  // ICE candidates → send to peer via Firebase
+  pc.onicecandidate = function(e){
+    if(!e.candidate) return;
+    _camSigRef.child(peerId).child(_camUserId).child('ice').push({
+      candidate: e.candidate.candidate,
+      sdpMid: e.candidate.sdpMid,
+      sdpMLineIndex: e.candidate.sdpMLineIndex,
+      ts: Date.now()
+    });
+  };
+
+  pc.onconnectionstatechange = function(){
+    if(pc.connectionState==='failed'||pc.connectionState==='disconnected'||pc.connectionState==='closed'){
+      closePeer(peerId);
+      updateCamStrip();
+    }
+  };
+
+  if(initiator){
+    pc.createOffer().then(function(offer){
+      return pc.setLocalDescription(offer);
+    }).then(function(){
+      _camSigRef.child(peerId).child(_camUserId).update({
+        offer: JSON.stringify(pc.localDescription),
+        ts: Date.now()
+      });
+    }).catch(function(e){ console.warn('offer err',e); });
   }
+
+  return pc;
 }
 
-// Update camera name overlay every 2s
+function closePeer(peerId){
+  if(_peers[peerId]){ _peers[peerId].close(); delete _peers[peerId]; }
+  delete _remoteStreams[peerId];
+  // Clean up signal
+  _camSigRef.child(peerId).child(_camUserId).remove();
+  _camSigRef.child(_camUserId).child(peerId).remove();
+}
+
+// ── Listen for signals addressed to me ──
+function startSignalListener(){
+  if(_mySigListener) return;
+  _mySigListener = true;
+
+  _camSigRef.child(_camUserId).on('child_added', function(snap){
+    var fromId = snap.key;
+    var data = snap.val();
+    if(!data) return;
+
+    // Got an offer from fromId
+    if(data.offer && !_peers[fromId]){
+      var pc = createPeer(fromId, false);
+      var desc = JSON.parse(data.offer);
+      pc.setRemoteDescription(new RTCSessionDescription(desc)).then(function(){
+        return pc.createAnswer();
+      }).then(function(answer){
+        return pc.setLocalDescription(answer);
+      }).then(function(){
+        _camSigRef.child(fromId).child(_camUserId).update({
+          answer: JSON.stringify(pc.localDescription),
+          ts: Date.now()
+        });
+      }).catch(function(e){ console.warn('answer err',e); });
+    }
+
+    // Got an answer to my offer
+    if(data.answer && _peers[fromId]){
+      var pc2 = _peers[fromId];
+      if(pc2.signalingState==='have-local-offer'){
+        pc2.setRemoteDescription(new RTCSessionDescription(JSON.parse(data.answer)))
+          .catch(function(e){ console.warn('setRemoteDesc err',e); });
+      }
+    }
+  });
+
+  // ICE from others
+  _camSigRef.child(_camUserId).on('child_changed', function(snap){
+    var fromId = snap.key;
+    var data = snap.val();
+    if(!data||!data.ice) return;
+    var pc = _peers[fromId];
+    if(!pc) return;
+    // data.ice is a push-list object
+    Object.values(data.ice||{}).forEach(function(ic){
+      if(!ic.candidate) return;
+      pc.addIceCandidate(new RTCIceCandidate({
+        candidate:ic.candidate,
+        sdpMid:ic.sdpMid,
+        sdpMLineIndex:ic.sdpMLineIndex
+      })).catch(function(){});
+    });
+  });
+}
+
+// ── Connect to peers already broadcasting ──
+function connectToExistingCams(){
+  _camPresRef.once('value', function(snap){
+    var data = snap.val()||{};
+    Object.entries(data).forEach(function(pair){
+      var uid = pair[0], info = pair[1];
+      if(uid===_camUserId) return;
+      if(!info.on) return;
+      // I initiate offer to them
+      createPeer(uid, true);
+    });
+  });
+}
+
+// ── Watch cam presence — when someone new turns on, connect to them ──
+_camPresRef.on('child_changed', function(snap){
+  var uid = snap.key;
+  var info = snap.val()||{};
+  if(uid===_camUserId) return;
+  if(info.on && _camStream && !_peers[uid]){
+    // New broadcaster came online — they will send us an offer (they call connectToExistingCams)
+    // We just wait for the signal; also create peer on our side if we're also broadcasting
+    createPeer(uid, true);
+  }
+  if(!info.on && _peers[uid]){
+    closePeer(uid);
+    updateCamStrip();
+  }
+});
+
+_camPresRef.on('child_removed', function(snap){
+  var uid = snap.key;
+  if(_peers[uid]){ closePeer(uid); updateCamStrip(); }
+});
+
+// ── Build the cam strip: own tile + remote tiles ──
+function updateCamStrip(){
+  var strip = document.getElementById('cam-strip');
+  var inner = document.getElementById('cam-strip-inner');
+  if(!strip||!inner) return;
+
+  // Own tile
+  if(_camStream){
+    var own = document.getElementById('cam-tile-own');
+    if(!own){
+      own = makeCamTile('cam-tile-own', null, _camUserName2||'You', true);
+      inner.appendChild(own);
+    }
+    var ov = own.querySelector('video');
+    if(ov && ov.srcObject !== _camStream){ ov.srcObject = _camStream; }
+    // Mirror
+    var mainVid = document.getElementById('cam-video');
+    if(mainVid && ov) ov.style.transform = mainVid.style.transform;
+    own.querySelector('.cam-name-tag').textContent = _camUserName2||'You';
+  } else {
+    var own2=document.getElementById('cam-tile-own');
+    if(own2) own2.remove();
+  }
+
+  // Remote tiles
+  _camPresRef.once('value', function(snap){
+    var presence = snap.val()||{};
+    Object.entries(_remoteStreams).forEach(function(pair){
+      var uid = pair[0], rStream = pair[1];
+      var tileId = 'cam-tile-'+uid;
+      var existing = document.getElementById(tileId);
+      var peerName = (presence[uid]&&presence[uid].name)||'User';
+      if(!existing){
+        var tile = makeCamTile(tileId, rStream, peerName, false);
+        inner.appendChild(tile);
+      } else {
+        var rv = existing.querySelector('video');
+        if(rv && rv.srcObject !== rStream) rv.srcObject = rStream;
+        existing.querySelector('.cam-name-tag').textContent = peerName;
+      }
+    });
+    // Remove tiles for disconnected peers
+    inner.querySelectorAll('[id^="cam-tile-"]').forEach(function(tile){
+      var tid = tile.id;
+      if(tid==='cam-tile-own') return;
+      var uid2 = tid.replace('cam-tile-','');
+      if(!_remoteStreams[uid2]) tile.remove();
+    });
+    // Show/hide strip
+    var hasAny = inner.children.length > 0;
+    strip.style.display = hasAny ? 'block' : 'none';
+  });
+}
+
+function makeCamTile(id, stream, name, isOwn){
+  var tile = document.createElement('div');
+  tile.id = id;
+  tile.style.cssText = 'position:relative;width:160px;height:120px;border-radius:12px;overflow:hidden;'
+    +'background:#000;border:1.5px solid '+(isOwn?'rgba(29,158,117,.5)':'rgba(55,138,221,.45)')
+    +';box-shadow:0 0 16px '+(isOwn?'rgba(29,158,117,.2)':'rgba(55,138,221,.15)')+';flex-shrink:0;';
+
+  var v = document.createElement('video');
+  v.autoplay=true; v.playsInline=true; v.muted=true;
+  v.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+  if(stream) v.srcObject = stream;
+  tile.appendChild(v);
+
+  var nameTag = document.createElement('div');
+  nameTag.className='cam-name-tag';
+  nameTag.style.cssText='position:absolute;bottom:4px;left:5px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);'
+    +'border-radius:5px;padding:2px 7px;font-size:10px;color:#fff;font-weight:600;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  nameTag.textContent = name;
+  tile.appendChild(nameTag);
+
+  var dot = document.createElement('div');
+  dot.style.cssText='position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;'
+    +'background:#E24B4A;box-shadow:0 0 8px rgba(226,75,74,.9),0 0 0 2px rgba(226,75,74,.3);animation:liveDotPulse 1.2s ease-in-out infinite';
+  tile.appendChild(dot);
+
+  if(!isOwn){
+    var label = document.createElement('div');
+    label.style.cssText='position:absolute;top:5px;left:5px;background:rgba(55,138,221,.3);border:1px solid rgba(55,138,221,.5);'
+      +'border-radius:4px;padding:1px 5px;font-size:8px;color:#a8d4f5;font-weight:700;letter-spacing:.04em';
+    label.textContent='LIVE';
+    tile.appendChild(label);
+  }
+  return tile;
+}
+
+// Refresh remote tile names + strip every 4s
+setInterval(function(){
+  if(!_camStream && Object.keys(_remoteStreams).length===0) return;
+  updateCamStrip();
+  // Update own name overlay
+  if(_camStream){
+    var n = getCamDisplayName();
+    _camUserName2 = n;
+    var ov=document.getElementById('cam-name-overlay');
+    if(ov) ov.textContent=n;
+    if(_myCamPresRef) _myCamPresRef.update({name:n});
+  }
+  // Update cam count label
+  var inner=document.getElementById('cam-strip-inner');
+  var cc=document.getElementById('cam-count');
+  if(cc&&inner) cc.textContent=inner.children.length+' online';
+}, 4000);
+
+function showCamError(err){
+  var msg='';
+  if(!err) msg='Camera error.';
+  else if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError')
+    msg='⚠ Camera access denied. Allow access in browser settings and retry.';
+  else if(err.name==='NotFoundError') msg='No camera found on this device.';
+  else if(err.name==='NotReadableError'||err.name==='AbortError') msg='Camera is busy — close other apps and retry.';
+  else if(err.name==='NotSupportedError') msg='Camera not supported on this browser.';
+  else msg='Camera error: '+(err.message||err.name||err);
+  var e=document.getElementById('cam-error-msg');
+  if(e){e.textContent=msg;e.style.display='block';}
+}
+
+// Clean up on page unload
+window.addEventListener('beforeunload',function(){
+  if(_myCamPresRef) _myCamPresRef.update({on:false,ts:Date.now()});
+  Object.keys(_peers).forEach(closePeer);
+});
+
+// Update camera name overlay
 setInterval(function(){
   if(!_camStream)return;
   var n=getCamDisplayName();
   var ov=document.getElementById('cam-name-overlay');
   if(ov)ov.textContent=n;
-  var nt=document.querySelector('#cam-tile-own div');
-  if(nt)nt.textContent=n;
 },2000);
 
 
