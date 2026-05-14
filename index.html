@@ -173,6 +173,75 @@ html::before{content:'';position:fixed;top:0;left:0;right:0;height:2px;z-index:9
 }
 
 #fc-bubble,#fc-popup{display:none !important;}
+
+/* ══ DAILY TASKS ══ */
+#daily-tasks-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;}
+.dt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;}
+.dt-title-row{display:flex;align-items:center;gap:8px;}
+.dt-date-label{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.06em;text-transform:uppercase;}
+.dt-progress{font-size:10px;color:rgba(29,158,117,.7);font-weight:600;}
+.dt-add-row{display:flex;flex-direction:column;gap:7px;margin-bottom:.75rem;}
+.dt-input-row{display:flex;gap:6px;}
+.dt-subject-pills{display:flex;gap:5px;flex-wrap:wrap;}
+.dt-spill{font-size:10.5px;font-weight:700;padding:4px 11px;border-radius:99px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.4);cursor:pointer;transition:all .18s;letter-spacing:.02em;white-space:nowrap;}
+.dt-spill:hover{border-color:rgba(255,255,255,.22);color:rgba(255,255,255,.7);}
+.dt-spill.active[data-subj=""]{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff;}
+.dt-spill.active:not([data-subj=""]){background:color-mix(in srgb,var(--sc,#1D9E75) 18%,transparent);border-color:color-mix(in srgb,var(--sc,#1D9E75) 55%,transparent);color:var(--sc,#1D9E75);box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,#1D9E75) 10%,transparent);}
+/* Subject badge on task item */
+.dt-subj-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;border:1px solid;white-space:nowrap;flex-shrink:0;}
+.dt-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:8px 12px;font-size:13px;color:#f0f0f0;font-family:inherit;outline:none;transition:border-color .2s;}
+.dt-input:focus{border-color:rgba(29,158,117,.5);}
+.dt-add-btn{background:linear-gradient(135deg,#0a3d1e,#1D9E75);border:none;border-radius:9px;padding:8px 14px;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap;display:flex;align-items:center;gap:5px;}
+.dt-add-btn:hover{background:linear-gradient(135deg,#0d5228,#25b882);}
+.dt-list{display:flex;flex-direction:column;gap:6px;}
+.dt-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);transition:all .25s;position:relative;overflow:hidden;}
+.dt-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--dt-bar,rgba(29,158,117,.3));border-radius:3px 0 0 3px;transition:background .25s;}
+.dt-item.dt-done{opacity:.55;}
+.dt-item.dt-done::before{background:rgba(255,255,255,.15);}
+.dt-check{width:20px;height:20px;border-radius:50%;border:2px solid rgba(29,158,117,.5);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;position:relative;}
+.dt-check:hover{border-color:#1D9E75;background:rgba(29,158,117,.1);}
+.dt-item.dt-done .dt-check{background:linear-gradient(135deg,#0F6E56,#1D9E75);border-color:#1D9E75;}
+.dt-check-icon{width:10px;height:10px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;display:none;}
+.dt-item.dt-done .dt-check-icon{display:block;}
+.dt-text{flex:1;font-size:13px;color:#e0f0ea;line-height:1.4;transition:color .2s;}
+.dt-item.dt-done .dt-text{text-decoration:line-through;color:rgba(255,255,255,.35);}
+.dt-del{background:none;border:none;color:rgba(255,75,74,.4);font-size:16px;cursor:pointer;padding:2px 5px;border-radius:5px;line-height:1;transition:color .15s,background .15s;flex-shrink:0;}
+.dt-del:hover{color:#E24B4A;background:rgba(226,75,74,.1);}
+.dt-empty{text-align:center;padding:1.5rem 0;font-size:12px;color:rgba(255,255,255,.2);}
+.dt-empty-icon{font-size:28px;margin-bottom:.4rem;display:block;}
+.dt-progress-bar{height:3px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;margin-bottom:.75rem;}
+.dt-progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#0F6E56,#1D9E75,#5DCAA5);transition:width .5s cubic-bezier(.34,1.56,.64,1);}
+.dt-view-tabs{display:flex;gap:4px;margin-bottom:.6rem;}
+.dt-view-tab{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:7px;padding:4px 10px;font-size:10px;color:rgba(255,255,255,.4);cursor:pointer;transition:all .2s;}
+.dt-view-tab.active{background:rgba(29,158,117,.15);border-color:rgba(29,158,117,.35);color:#5DCAA5;}
+@keyframes dtSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.dt-item{animation:dtSlideIn .2s ease;}
+
+/* ══ CAMERA IMPROVEMENTS ══ */
+/* Larger cam tiles in strip */
+#cam-strip-inner .cam-tile-pub,
+#cam-strip div[style*="100px"]{width:160px!important;height:120px!important;}
+/* Better live dot quality */
+@keyframes liveDotPulse{
+  0%{opacity:.4;transform:scale(.7);box-shadow:0 0 0 0 rgba(226,75,74,.7);}
+  50%{opacity:1;transform:scale(1.1);box-shadow:0 0 0 4px rgba(226,75,74,0);}
+  100%{opacity:.4;transform:scale(.7);box-shadow:0 0 0 0 rgba(226,75,74,0);}
+}
+/* Camera on-ui larger preview */
+#cam-on-ui>div:first-child{max-width:420px!important;}
+/* Strip cam tile size */
+#cam-tile-own{width:160px!important;height:120px!important;border-radius:12px!important;border:1.5px solid rgba(29,158,117,.5)!important;box-shadow:0 0 16px rgba(29,158,117,.2)!important;}
+
+
+/* ── SESSIONS CARD VIEW (tracker) ── */
+.sess-pub-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:7px;}
+.sess-pub-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:11px;padding:.7rem .85rem;display:flex;flex-direction:column;gap:4px;transition:border-color .15s;}
+.sess-pub-card:hover{border-color:rgba(255,255,255,.14);}
+.sess-pub-card-subj{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;align-self:flex-start;}
+.sess-pub-card-dur{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#f0f0f0;line-height:1.1;}
+.sess-pub-card-cat{font-size:10px;color:rgba(255,255,255,.38);}
+.sess-pub-card-name{font-size:10px;color:rgba(255,255,255,.28);}
+.sess-pub-card-meta{font-size:9.5px;color:rgba(255,255,255,.2);}
 #edge-chat-tab{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:8999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:linear-gradient(180deg,#0a3d1e,#1D9E75);border-radius:12px 0 0 12px;padding:12px 7px;cursor:pointer;box-shadow:-2px 0 16px rgba(29,158,117,.25);user-select:none;}
 #edge-chat-tab:hover{background:linear-gradient(180deg,#0d5228,#25b882);}
 #edge-chat-tab svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -495,10 +564,22 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
     </div>
   </div>
 
+  <!-- UPCOMING SCHEDULE ALERT (15min warning) -->
+  <div id="upcoming-alert-bar" style="display:none;background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(160,112,64,.08));border:1px solid rgba(201,168,76,.35);border-radius:12px;padding:.75rem 1rem;margin-bottom:.75rem;animation:soonPulse 2s ease-in-out infinite">
+    <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(201,168,76,.7);margin-bottom:6px">⏰ Coming up soon</div>
+    <div id="upcoming-alert-list"></div>
+  </div>
+
   <!-- ALL USERS LIVE -->
   <div class="section-title">👥 Who's studying now</div>
-  <div id="all-users-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:1rem">
+  <div id="all-users-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:.75rem">
     <div class="empty">Loading...</div>
+  </div>
+
+  <!-- STUDY CAM STRIP (below who's studying) -->
+  <div id="cam-strip" style="display:none;margin-bottom:1rem">
+    <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(29,158,117,.55);margin-bottom:6px">📷 Live cams</div>
+    <div id="cam-strip-inner" style="display:flex;gap:8px;flex-wrap:wrap"></div>
   </div>
 
   <!-- TODAY'S LEADERBOARD -->
@@ -531,7 +612,13 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
   </div>
 
   <!-- SESSIONS -->
-  <div class="section-title">Sessions</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.5rem">
+    <div class="section-title" style="margin-bottom:0">Sessions</div>
+    <div style="display:flex;gap:5px">
+      <button class="pub-chip active" id="sess-view-list" onclick="setSessView('list',this)">☰ List</button>
+      <button class="pub-chip" id="sess-view-card" onclick="setSessView('card',this)">⊞ Cards</button>
+    </div>
+  </div>
   <div class="sessions-card">
     <div id="sess-list"><div class="empty">No sessions yet.</div></div>
   </div>
@@ -547,6 +634,73 @@ html,body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif
     </div>
     <div class="sched-tabs" id="sched-user-tabs"></div>
     <div id="sched-pub-list"><div class="empty">No schedules yet.</div></div>
+  </div>
+
+  <!-- DAILY TASKS SECTION -->
+  <div class="section-title" style="margin-top:1rem">✅ Daily Tasks</div>
+  <div id="daily-tasks-section">
+    <div class="dt-header">
+      <div class="dt-title-row">
+        <div class="dt-date-label" id="dt-date-label">Today</div>
+        <div class="dt-progress" id="dt-progress-label">0 / 0 done</div>
+      </div>
+      <div class="dt-view-tabs">
+        <div class="dt-view-tab active" onclick="setDtView('today',this)">Today</div>
+        <div class="dt-view-tab" onclick="setDtView('yesterday',this)">Yesterday</div>
+        <div class="dt-view-tab" onclick="setDtView('week',this)">This week</div>
+      </div>
+    </div>
+    <div class="dt-progress-bar"><div class="dt-progress-fill" id="dt-progress-fill" style="width:0%"></div></div>
+    <div class="dt-add-row" id="dt-add-row">
+      <div class="dt-subject-pills" id="dt-subject-pills">
+        <div class="dt-spill active" data-subj="" onclick="dtSelectSubj(this,'')">All</div>
+        <div class="dt-spill" data-subj="Biology" onclick="dtSelectSubj(this,'Biology')" style="--sc:#1D9E75">Bio</div>
+        <div class="dt-spill" data-subj="Chemistry" onclick="dtSelectSubj(this,'Chemistry')" style="--sc:#378ADD">Chem</div>
+        <div class="dt-spill" data-subj="Physics" onclick="dtSelectSubj(this,'Physics')" style="--sc:#7F77DD">Phy</div>
+        <div class="dt-spill" data-subj="Combined Maths" onclick="dtSelectSubj(this,'Combined Maths')" style="--sc:#D85A30">Maths</div>
+        <div class="dt-spill" data-subj="ICT" onclick="dtSelectSubj(this,'ICT')" style="--sc:#EF9F27">ICT</div>
+        <div class="dt-spill" data-subj="Other" onclick="dtSelectSubj(this,'Other')" style="--sc:#5DCAA5">Other</div>
+      </div>
+      <div class="dt-input-row">
+        <input class="dt-input" id="dt-new-task" placeholder="Add a task for today..." maxlength="120" onkeydown="if(event.key==='Enter')dtAddTask()">
+        <button class="dt-add-btn" onclick="dtAddTask()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add
+        </button>
+      </div>
+    </div>
+    <div class="dt-list" id="dt-list">
+      <div class="dt-empty"><span class="dt-empty-icon">📋</span>No tasks yet — add one above!</div>
+    </div>
+  </div>
+
+  <!-- CAMERA SECTION -->
+  <div class="section-title" style="margin-top:1rem">📷 Study Cam</div>
+  <div id="cam-section" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem">
+    <div id="cam-off-ui" style="text-align:center;padding:.5rem 0">
+      <div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:.75rem">Share your study cam — only your device's camera opens</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button onclick="startCam('front')" style="background:linear-gradient(135deg,#0a3d1e,#1D9E75);border:none;border-radius:9px;padding:8px 16px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          📱 Mobile / Front cam
+        </button>
+        <button onclick="startCam('back')" style="background:linear-gradient(135deg,#1a2a4a,#378ADD);border:none;border-radius:9px;padding:8px 16px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          💻 Laptop / Webcam
+        </button>
+      </div>
+      <div id="cam-error-msg" style="font-size:11px;color:rgba(226,75,74,.8);margin-top:.5rem;display:none"></div>
+    </div>
+    <div id="cam-on-ui" style="display:none">
+      <div style="position:relative;border-radius:10px;overflow:hidden;background:#000;max-width:320px;margin:0 auto .6rem">
+        <video id="cam-video" autoplay playsinline muted style="width:100%;display:block"></video>
+        <div id="cam-name-overlay" style="position:absolute;bottom:6px;left:8px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;color:#fff"></div>
+        <div style="position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:#E24B4A;box-shadow:0 0 8px rgba(226,75,74,.9),0 0 0 2px rgba(226,75,74,.3);animation:liveDotPulse 1.2s ease-in-out infinite"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button onclick="stopCam()" style="background:rgba(226,75,74,.15);border:1px solid rgba(226,75,74,.3);border-radius:8px;padding:6px 16px;color:#E24B4A;font-size:12px;cursor:pointer;font-family:inherit">⏹ Turn off</button>
+      </div>
+    </div>
   </div>
 
   <!-- GEMINI AI CHAT -->
@@ -1100,13 +1254,27 @@ function render(){
   Object.entries(_allUsers).forEach(([uid,u])=>{
     (u.sessions||[]).forEach(s=>{sessionNames[s.id]=u.profile&&u.profile.name?u.profile.name:'';});
   });
-  sessList.innerHTML=all.length?all.map(s=>`<div class="sess-item">
-    <span class="sess-badge" style="background:${SUBJ_COLORS[s.subject]||'#5F5E5A'}">${s.subject}</span>
-    ${sessionNames[s.id]?`<span style="font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap">${escHtml(sessionNames[s.id])}</span>`:''}
-    <span class="sess-subj" style="color:${CAT_COLORS[s.category]||'var(--muted)'}">${s.category}</span>
-    <span class="sess-meta">${s.date} · ${s.time}</span>
-    <span class="sess-dur">${fmtSec(s.duration)}</span>
-  </div>`).join(''):'<div class="empty">No sessions for this period.</div>';
+  var _sv=window._sessViewMode||'list';
+  if(_sv==='card'){
+    sessList.innerHTML=all.length?'<div class="sess-pub-card-grid">'+all.map(s=>{
+      var sc=SUBJ_COLORS[s.subject]||'#5F5E5A';
+      return`<div class="sess-pub-card" style="border-color:${sc}30">
+        <span class="sess-pub-card-subj" style="background:${sc}22;border:1px solid ${sc}55;color:${sc}">${s.subject}</span>
+        <div class="sess-pub-card-dur">${fmtSec(s.duration)}</div>
+        <div class="sess-pub-card-cat">${s.category}</div>
+        ${sessionNames[s.id]?`<div class="sess-pub-card-name">👤 ${escHtml(sessionNames[s.id])}</div>`:''}
+        <div class="sess-pub-card-meta">${s.date} · ${s.time}</div>
+      </div>`;
+    }).join('')+'</div>':'<div class="empty">No sessions for this period.</div>';
+  } else {
+    sessList.innerHTML=all.length?all.map(s=>`<div class="sess-item">
+      <span class="sess-badge" style="background:${SUBJ_COLORS[s.subject]||'#5F5E5A'}">${s.subject}</span>
+      ${sessionNames[s.id]?`<span style="font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap">${escHtml(sessionNames[s.id])}</span>`:''}
+      <span class="sess-subj" style="color:${CAT_COLORS[s.category]||'var(--muted)'}">${s.category}</span>
+      <span class="sess-meta">${s.date} · ${s.time}</span>
+      <span class="sess-dur">${fmtSec(s.duration)}</span>
+    </div>`).join(''):'<div class="empty">No sessions for this period.</div>';
+  }
   // ── UPDATE OPEN MODAL target bar if visible ──
   var modal=document.getElementById('user-modal');
   if(modal&&modal.style.display!=='none'&&_openModalUid){
@@ -1331,6 +1499,7 @@ function renderPublicSchedules(){
 
   // Apply date filter
   var now2=new Date();
+  var todayStr=todayKey();
   var yestDate2=new Date(now2);yestDate2.setDate(yestDate2.getDate()-1);
   var yestStr2=yestDate2.getFullYear()+'-'+String(yestDate2.getMonth()+1).padStart(2,'0')+'-'+String(yestDate2.getDate()).padStart(2,'0');
   filtered=filtered.filter(function(sc){
@@ -1354,8 +1523,7 @@ function renderPublicSchedules(){
   var list=document.getElementById('sched-pub-list');
   if(!filtered.length){list.innerHTML='<div class="empty">No schedules yet.</div>';return;}
 
-  var now=new Date();
-  var todayStr=todayKey();
+  var now=now2;
   var tom=new Date(now);tom.setDate(tom.getDate()+1);
   var tomorrowStr=tom.getFullYear()+'-'+String(tom.getMonth()+1).padStart(2,'0')+'-'+String(tom.getDate()).padStart(2,'0');
 
@@ -1717,6 +1885,333 @@ db.ref('config/geminiKey').on('value',function(snap){
   setInterval(window.fcUpdateStudying,1000);
   window.fcUpdateStudying();
 })();
+
+// ── SESSION VIEW TOGGLE (tracker public) ──
+window._sessViewMode='list';
+window.setSessView=function(v,el){
+  window._sessViewMode=v;
+  document.querySelectorAll('#sess-view-list,#sess-view-card').forEach(function(b){b.classList.remove('active');});
+  if(el)el.classList.add('active');
+  render();
+};
+
+// ── UPCOMING SCHEDULE ALERT (15 min warning) ──
+function updateUpcomingAlert(){
+  var bar=document.getElementById('upcoming-alert-bar');
+  var listEl=document.getElementById('upcoming-alert-list');
+  if(!bar||!listEl)return;
+  var now=new Date();
+  var td=todayKey();
+  var items=[];
+  Object.entries(_allUsers).forEach(function(pair){
+    var uid=pair[0],u=pair[1];
+    (u.schedules||[]).forEach(function(sc){
+      if(sc.date!==td)return;
+      var parts=sc.startTime.split(':');
+      var sdt=new Date();sdt.setHours(parseInt(parts[0]),parseInt(parts[1]),0,0);
+      var secsUntil=Math.floor((sdt-now)/1000);
+      if(secsUntil>0&&secsUntil<=900){ // 15 minutes = 900s
+        items.push({sc:sc,secsUntil:secsUntil,name:(u.profile&&u.profile.name)||'?'});
+      }
+    });
+  });
+  if(!items.length){bar.style.display='none';return;}
+  bar.style.display='block';
+  items.sort(function(a,b){return a.secsUntil-b.secsUntil;});
+  listEl.innerHTML=items.map(function(item){
+    var sc=item.sc;
+    var m=Math.floor(item.secsUntil/60),s=item.secsUntil%60;
+    var cdTxt=m+'m '+(s<10?'0':'')+s+'s';
+    var isBreak=sc.isBreak;
+    var col=isBreak?'#c9a84c':(SUBJ_COLORS[sc.subject]||'#5F5E5A');
+    var label=isBreak?'☕ Break':escHtml(sc.subject);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(201,168,76,.1)">'
+      +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:'+col+'22;border:1px solid '+col+'55;color:'+col+'">'+label+'</span>'
+      +'<span style="font-size:10px;color:rgba(255,255,255,.4)">'+sc.startTime+' · '+fmtSec(sc.duration)+'</span>'
+      +'<span style="font-size:10px;color:rgba(255,255,255,.3)">'+escHtml(item.name)+'</span>'
+      +'<span style="margin-left:auto;font-size:10.5px;font-weight:700;color:#f0d080">in '+cdTxt+'</span>'
+      +'</div>';
+  }).join('');
+}
+setInterval(updateUpcomingAlert,1000);
+
+// ══ DAILY TASKS ══
+var _dtView='today';
+var _dtRef=db.ref('dailyTasks');
+var _dtData={};  // dateKey → { taskId: {text, done, ts, subject} }
+var _dtSelSubj=''; // currently selected subject for new tasks
+
+window.dtSelectSubj=function(el,subj){
+  _dtSelSubj=subj;
+  document.querySelectorAll('.dt-spill').forEach(function(p){p.classList.remove('active');});
+  if(el)el.classList.add('active');
+  // Update input placeholder
+  var inp=document.getElementById('dt-new-task');
+  if(inp)inp.placeholder=subj?'Add a '+subj+' task...':'Add a task for today...';
+};
+
+function dtDateKey(offset){
+  var d=new Date();
+  d.setDate(d.getDate()+(offset||0));
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function dtFriendlyDate(key){
+  var today=dtDateKey(0),yest=dtDateKey(-1);
+  if(key===today)return 'Today — '+new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  if(key===yest)return 'Yesterday — '+new Date(key).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  return new Date(key+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+
+// Real-time listener
+_dtRef.on('value',function(snap){
+  _dtData=snap.val()||{};
+  renderDailyTasks();
+});
+
+window.setDtView=function(v,el){
+  _dtView=v;
+  document.querySelectorAll('.dt-view-tab').forEach(function(t){t.classList.remove('active');});
+  if(el)el.classList.add('active');
+  var addRow=document.getElementById('dt-add-row');
+  if(addRow)addRow.style.display=(v==='today')?'flex':'none';
+  renderDailyTasks();
+};
+
+function getDtViewDates(){
+  if(_dtView==='today') return [dtDateKey(0)];
+  if(_dtView==='yesterday') return [dtDateKey(-1)];
+  // This week — last 7 days
+  var dates=[];
+  for(var i=6;i>=0;i--) dates.push(dtDateKey(-i));
+  return dates;
+}
+
+function renderDailyTasks(){
+  var list=document.getElementById('dt-list');
+  var progressLabel=document.getElementById('dt-progress-label');
+  var progressFill=document.getElementById('dt-progress-fill');
+  var dateLabel=document.getElementById('dt-date-label');
+  if(!list)return;
+
+  var dates=getDtViewDates();
+  var allTasks=[];
+  dates.forEach(function(dk){
+    var dayTasks=_dtData[dk]||{};
+    Object.entries(dayTasks).forEach(function(pair){
+      allTasks.push(Object.assign({},pair[1],{_id:pair[0],_date:dk}));
+    });
+  });
+  allTasks.sort(function(a,b){return (a.ts||0)-(b.ts||0);});
+
+  // Update date label
+  if(dateLabel){
+    if(_dtView==='today') dateLabel.textContent=dtFriendlyDate(dtDateKey(0));
+    else if(_dtView==='yesterday') dateLabel.textContent=dtFriendlyDate(dtDateKey(-1));
+    else dateLabel.textContent='Past 7 days';
+  }
+
+  // Progress
+  var total=allTasks.length, done=allTasks.filter(function(t){return t.done;}).length;
+  if(progressLabel)progressLabel.textContent=done+' / '+total+' done';
+  var pct=total?Math.round(done/total*100):0;
+  if(progressFill)progressFill.style.width=pct+'%';
+
+  if(!allTasks.length){
+    list.innerHTML='<div class="dt-empty"><span class="dt-empty-icon">📋</span>'
+      +(_dtView==='today'?'No tasks yet — add one above!':'No tasks for this period.')+'</div>';
+    return;
+  }
+
+  // Group by date for week view
+  var grouped={};
+  allTasks.forEach(function(t){
+    if(!grouped[t._date])grouped[t._date]=[];
+    grouped[t._date].push(t);
+  });
+
+  var html='';
+  Object.keys(grouped).sort().reverse().forEach(function(dk){
+    if(_dtView==='week'){
+      html+='<div style="font-size:10px;color:rgba(255,255,255,.25);letter-spacing:.06em;text-transform:uppercase;padding:4px 0 6px;margin-top:4px">'+dtFriendlyDate(dk)+'</div>';
+    }
+    grouped[dk].forEach(function(t){
+      var isDone=!!t.done;
+      var subjColor=t.subject?(SUBJ_COLORS[t.subject]||'#5DCAA5'):'';
+      var badgeHtml=t.subject
+        ?'<span class="dt-subj-badge" style="color:'+subjColor+';background:'+subjColor+'22;border-color:'+subjColor+'55">'+escHtml(t.subject)+'</span>'
+        :'';
+      var barStyle=t.subject?'style="--dt-bar:'+subjColor+'"':'';
+      html+='<div class="dt-item'+(isDone?' dt-done':'')+'" id="dt-item-'+t._id+'" '+barStyle+'>'
+        +'<button class="dt-check" onclick="dtToggle(\''+t._date+'\',\''+t._id+'\')" title="'+(isDone?'Mark undone':'Mark done')+'">'
+        +'<svg class="dt-check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+        +'</button>'
+        +badgeHtml
+        +'<span class="dt-text">'+escHtml(t.text)+'</span>';
+      if(_dtView==='today'||_dtView==='yesterday'){
+        html+='<button class="dt-del" onclick="dtDelete(\''+t._date+'\',\''+t._id+'\')" title="Delete">×</button>';
+      }
+      html+='</div>';
+    });
+  });
+  list.innerHTML=html;
+}
+
+window.dtAddTask=function(){
+  var inp=document.getElementById('dt-new-task');
+  var text=inp?inp.value.trim():'';
+  if(!text)return;
+  var dk=dtDateKey(0);
+  var payload={text:text,done:false,ts:Date.now()};
+  if(_dtSelSubj)payload.subject=_dtSelSubj;
+  _dtRef.child(dk).push(payload);
+  if(inp)inp.value='';
+};
+
+window.dtToggle=function(dk,tid){
+  var task=(_dtData[dk]&&_dtData[dk][tid]);
+  if(!task)return;
+  _dtRef.child(dk).child(tid).update({done:!task.done});
+};
+
+window.dtDelete=function(dk,tid){
+  _dtRef.child(dk).child(tid).remove();
+};
+
+// ── CAMERA ──
+var _camStream=null;
+var _camUserName='';
+
+function getCamDisplayName(){
+  var nameEl=document.getElementById('c-name');
+  var saved=localStorage.getItem('pub_chat_name')||localStorage.getItem('pub_name')||'';
+  return (nameEl&&nameEl.value.trim())||saved||'You';
+}
+
+window.startCam=function(mode){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    var e=document.getElementById('cam-error-msg');
+    if(e){e.textContent='Camera not supported on this browser.';e.style.display='block';}
+    return;
+  }
+
+  // IMPORTANT: 'back' (laptop/webcam) must NOT use facingMode at all —
+  // on Windows, facingMode:'environment' triggers the phone camera app via Link to Windows.
+  // Use plain {video:true} for webcam so the browser picks the default camera directly.
+  var constraints;
+  if(mode==='back'){
+    constraints={video:true,audio:false};          // plain — browser default camera (webcam)
+  } else {
+    constraints={video:{facingMode:'user'},audio:false};  // mobile front cam
+  }
+
+  function applyStream(stream){
+    _camStream=stream;
+    var vid=document.getElementById('cam-video');
+    if(!vid)return;
+    vid.srcObject=null;
+    vid.srcObject=stream;
+    // Mirror only for explicit front/selfie mode
+    vid.style.transform=(mode==='front')?'scaleX(-1)':'none';
+    vid.onloadedmetadata=function(){
+      vid.play().catch(function(){});
+      document.getElementById('cam-off-ui').style.display='none';
+      document.getElementById('cam-on-ui').style.display='block';
+      _camUserName=getCamDisplayName();
+      var overlay=document.getElementById('cam-name-overlay');
+      if(overlay)overlay.textContent=_camUserName;
+      var errEl=document.getElementById('cam-error-msg');
+      if(errEl)errEl.style.display='none';
+      updateCamStrip();
+    };
+  }
+
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(applyStream)
+    .catch(function(err){
+      // If front-cam constraint failed, retry without facingMode
+      if(mode==='front'&&(err.name==='OverconstrainedError'||err.name==='NotFoundError')){
+        navigator.mediaDevices.getUserMedia({video:true,audio:false})
+          .then(applyStream)
+          .catch(function(err2){showCamError(err2);});
+        return;
+      }
+      showCamError(err);
+    });
+};
+
+function showCamError(err){
+  var msg='';
+  if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError'){
+    msg='⚠ Camera access denied. Click the camera icon in the browser address bar and allow access, then try again.';
+  } else if(err.name==='NotFoundError'){
+    msg='No camera found on this device.';
+  } else if(err.name==='NotReadableError'||err.name==='AbortError'){
+    msg='Camera is busy (another app is using it). Close it and retry.';
+  } else {
+    msg='Camera error: '+(err.message||err.name);
+  }
+  var e=document.getElementById('cam-error-msg');
+  if(e){e.textContent=msg;e.style.display='block';}
+}
+
+window.stopCam=function(){
+  if(_camStream){
+    _camStream.getTracks().forEach(function(t){t.stop();});
+    _camStream=null;
+  }
+  var vid=document.getElementById('cam-video');
+  if(vid){vid.srcObject=null;vid.onloadedmetadata=null;}
+  document.getElementById('cam-off-ui').style.display='block';
+  document.getElementById('cam-on-ui').style.display='none';
+  updateCamStrip();
+};
+
+// Cam strip (below who's studying now) — shows local video thumbnail
+function updateCamStrip(){
+  var strip=document.getElementById('cam-strip');
+  var inner=document.getElementById('cam-strip-inner');
+  if(!strip||!inner)return;
+  if(!_camStream){
+    // Remove own cam tile if exists
+    var own=document.getElementById('cam-tile-own');
+    if(own)own.remove();
+    if(!inner.children.length)strip.style.display='none';
+    return;
+  }
+  strip.style.display='block';
+  var existing=document.getElementById('cam-tile-own');
+  if(!existing){
+    var tile=document.createElement('div');
+    tile.id='cam-tile-own';
+    tile.style.cssText='position:relative;width:160px;height:120px;border-radius:12px;overflow:hidden;background:#000;border:1.5px solid rgba(29,158,117,.5);box-shadow:0 0 16px rgba(29,158,117,.2)';
+    var v2=document.createElement('video');
+    v2.autoplay=true;v2.playsInline=true;v2.muted=true;
+    v2.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+    var vid=document.getElementById('cam-video');
+    if(vid&&vid.srcObject)v2.srcObject=vid.srcObject;
+    var mirror=document.getElementById('cam-video');
+    if(mirror)v2.style.transform=mirror.style.transform;
+    var nameTag=document.createElement('div');
+    nameTag.style.cssText='position:absolute;bottom:3px;left:4px;background:rgba(0,0,0,.7);border-radius:4px;padding:1px 5px;font-size:9px;color:#fff;font-weight:600';
+    nameTag.textContent=_camUserName||'You';
+    var liveDot=document.createElement('div');
+    liveDot.style.cssText='position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:#E24B4A;box-shadow:0 0 8px rgba(226,75,74,.9),0 0 0 2px rgba(226,75,74,.3);animation:liveDotPulse 1.2s ease-in-out infinite';
+    tile.appendChild(v2);tile.appendChild(nameTag);tile.appendChild(liveDot);
+    inner.appendChild(tile);
+  }
+}
+
+// Update camera name overlay every 2s
+setInterval(function(){
+  if(!_camStream)return;
+  var n=getCamDisplayName();
+  var ov=document.getElementById('cam-name-overlay');
+  if(ov)ov.textContent=n;
+  var nt=document.querySelector('#cam-tile-own div');
+  if(nt)nt.textContent=n;
+},2000);
+
 
 </script>
 
