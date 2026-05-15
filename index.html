@@ -2083,6 +2083,7 @@ window.dtDelete=function(dk,tid){
 // App ID: 0c22f5312be841aa9cfbc88f97770228
 
 var AGORA_APP_ID = '0c22f5312be841aa9cfbc88f97770228';
+var AGORA_TOKEN  = '007eJxTYEh3cIg6HNot/olFdVJcOKN0kE1mxMXuZ1nOp16k81TI+ygwGCQbGaWZGhsaJaVamBgmJlompyUlW1ikWZqbmxsYGVmo6bNnNQQyMgQ3RzEwQiGIz8FQXFKaUpmcmMvAAACbshyl';
 var _agoraClient  = null;
 var _agoraTrack   = null;   // local camera track
 var _agoraMode    = null;
@@ -2163,7 +2164,7 @@ window.startCam = function(mode){
       // Use name as UID (hashed to number for Agora)
       var uid = Math.abs(myName.split('').reduce(function(a,c){return((a<<5)-a)+c.charCodeAt(0)|0;},0)) % 999999 + 1;
 
-      return _agoraClient.join(AGORA_APP_ID, _agoraChannel, null, uid);
+      return _agoraClient.join(AGORA_APP_ID, _agoraChannel, AGORA_TOKEN, uid);
     }).then(function(){
       _agoraJoined = true;
       return _agoraClient.publish(_agoraTrack);
