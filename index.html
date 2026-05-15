@@ -2104,12 +2104,32 @@ var _camSigRef    = db.ref('camSignal');
 var _myCamPresRef = null;
 var _sigListening = false;
 
+// ICE config with STUN + free TURN (works on Sri Lanka mobile networks)
+// TURN relay ensures connection even through symmetric NAT (Dialog/Mobitel)
 var ICE_CFG = {
   iceServers:[
+    // STUN (fast, used first)
     {urls:'stun:stun.l.google.com:19302'},
     {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'stun:stun2.l.google.com:19302'}
-  ]
+    // Free TURN via Open Relay (metered.ca public servers)
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    // Backup TURN (Numb — free public)
+    {
+      urls: 'turn:numb.viagenie.ca',
+      username: 'webrtc@live.com',
+      credential: 'muazkh'
+    }
+  ],
+  iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all'  // try STUN first, fallback to TURN automatically
 };
 
 function getCamDisplayName(){
@@ -2158,17 +2178,25 @@ function getOrCreatePeer(peerId){
 
   pc.onconnectionstatechange = function(){
     var s = pc.connectionState;
-    if(s==='failed'||s==='closed'){
-      closePeer(peerId); updateCamStrip();
+    console.log('[cam] peer='+peerId+' state='+s);
+    if(s==='failed'){
+      // Try ICE restart before giving up
+      if(_peers[peerId] && iAmOfferer(peerId)){
+        console.log('[cam] ICE restart for', peerId);
+        try{ _peers[peerId].restartIce(); sendOffer(peerId); }catch(e){ closePeer(peerId); updateCamStrip(); }
+      } else { closePeer(peerId); updateCamStrip(); }
     }
+    if(s==='closed'){ closePeer(peerId); updateCamStrip(); }
     if(s==='disconnected'){
-      // Try ICE restart after 3s
       setTimeout(function(){
         if(_peers[peerId]&&_peers[peerId].connectionState==='disconnected'){
           closePeer(peerId); updateCamStrip();
         }
-      }, 3000);
+      }, 5000);
     }
+  };
+  pc.oniceconnectionstatechange = function(){
+    console.log('[cam] ICE conn='+pc.iceConnectionState+' peer='+peerId);
   };
 
   return pc;
