@@ -2078,59 +2078,26 @@ window.dtDelete=function(dk,tid){
   _dtRef.child(dk).child(tid).remove();
 };
 
-// ══ WebRTC MULTI-USER CAMERA SHARING (FIXED) ══
-// Fix: deterministic offer side (lower uid always initiates)
-//      so two peers never send offer simultaneously → no glare
-// Firebase: camPresence/{uid} → {name,on,ts}
-//           camSignal/{toUid}/{fromUid} → {offer,answer,ice:{...}}
+// ══ AGORA MULTI-USER CAMERA SHARING ══
+// Uses Agora RTC SDK — works on Sri Lanka mobile networks (TURN built-in)
+// App ID: 0c22f5312be841aa9cfbc88f97770228
 
-var _camStream = null;
-var _camMode   = null;
-// Stable ID: prefer study-tracker uid, else generate once and store
-var _camUserId = (function(){
-  var saved = localStorage.getItem('cam_uid');
-  if(!saved){
-    saved = (_pubUserId) || ('cam_' + Math.random().toString(36).slice(2,9));
-    localStorage.setItem('cam_uid', saved);
-  }
-  return saved;
-})();
-var _camUserName2 = '';
-var _peers        = {};   // peerId → RTCPeerConnection
-var _remoteStreams = {};   // peerId → MediaStream
-var _iceBuf       = {};   // peerId → [RTCIceCandidate] buffered before remoteDesc set
-var _camPresRef   = db.ref('camPresence');
-var _camSigRef    = db.ref('camSignal');
-var _myCamPresRef = null;
-var _sigListening = false;
+var AGORA_APP_ID = '0c22f5312be841aa9cfbc88f97770228';
+var _agoraClient  = null;
+var _agoraTrack   = null;   // local camera track
+var _agoraMode    = null;
+var _agoraJoined  = false;
+var _agoraChannel = 'studycam';  // single shared channel for all users
 
-// ICE config with STUN + free TURN (works on Sri Lanka mobile networks)
-// TURN relay ensures connection even through symmetric NAT (Dialog/Mobitel)
-var ICE_CFG = {
-  iceServers:[
-    // STUN (fast, used first)
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    // Free TURN via Open Relay (metered.ca public servers)
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-    // Backup TURN (Numb — free public)
-    {
-      urls: 'turn:numb.viagenie.ca',
-      username: 'webrtc@live.com',
-      credential: 'muazkh'
-    }
-  ],
-  iceCandidatePoolSize: 10,
-  iceTransportPolicy: 'all'  // try STUN first, fallback to TURN automatically
-};
+// Load Agora SDK dynamically
+function loadAgoraSDK(cb){
+  if(window.AgoraRTC){ cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://download.agora.io/sdk/release/AgoraRTC_N-4.20.2.js';
+  s.onload = cb;
+  s.onerror = function(){ showCamError({name:'NotSupportedError', message:'Failed to load Agora SDK. Check network.'}); };
+  document.head.appendChild(s);
+}
 
 function getCamDisplayName(){
   var saved = localStorage.getItem('st_username')
@@ -2140,220 +2107,8 @@ function getCamDisplayName(){
   return (ni && ni.value.trim()) || saved || 'Viewer';
 }
 
-// ── Deterministic: lower string uid is the offerer ──
-function iAmOfferer(peerId){ return _camUserId < peerId; }
-
-// ── Create or get RTCPeerConnection ──
-function getOrCreatePeer(peerId){
-  if(_peers[peerId]) return _peers[peerId];
-
-  var pc = new RTCPeerConnection(ICE_CFG);
-  _peers[peerId] = pc;
-  _iceBuf[peerId] = [];
-
-  // Add local cam tracks if available
-  if(_camStream){
-    _camStream.getTracks().forEach(function(t){ pc.addTrack(t, _camStream); });
-  }
-
-  // Receive remote stream
-  if(!_remoteStreams[peerId]) _remoteStreams[peerId] = new MediaStream();
-  pc.ontrack = function(e){
-    e.streams[0].getTracks().forEach(function(t){
-      _remoteStreams[peerId].addTrack(t);
-    });
-    updateCamStrip();
-  };
-
-  // Send ICE to peer via Firebase
-  pc.onicecandidate = function(e){
-    if(!e.candidate) return;
-    _camSigRef.child(peerId).child(_camUserId).child('ice').push({
-      c: e.candidate.candidate,
-      m: e.candidate.sdpMid,
-      i: e.candidate.sdpMLineIndex,
-      t: Date.now()
-    });
-  };
-
-  pc.onconnectionstatechange = function(){
-    var s = pc.connectionState;
-    console.log('[cam] peer='+peerId+' state='+s);
-    if(s==='failed'){
-      // Try ICE restart before giving up
-      if(_peers[peerId] && iAmOfferer(peerId)){
-        console.log('[cam] ICE restart for', peerId);
-        try{ _peers[peerId].restartIce(); sendOffer(peerId); }catch(e){ closePeer(peerId); updateCamStrip(); }
-      } else { closePeer(peerId); updateCamStrip(); }
-    }
-    if(s==='closed'){ closePeer(peerId); updateCamStrip(); }
-    if(s==='disconnected'){
-      setTimeout(function(){
-        if(_peers[peerId]&&_peers[peerId].connectionState==='disconnected'){
-          closePeer(peerId); updateCamStrip();
-        }
-      }, 5000);
-    }
-  };
-  pc.oniceconnectionstatechange = function(){
-    console.log('[cam] ICE conn='+pc.iceConnectionState+' peer='+peerId);
-  };
-
-  return pc;
-}
-
-function closePeer(peerId){
-  if(_peers[peerId]){ try{ _peers[peerId].close(); }catch(e){} delete _peers[peerId]; }
-  delete _remoteStreams[peerId];
-  delete _iceBuf[peerId];
-  try{ _camSigRef.child(peerId).child(_camUserId).remove(); }catch(e){}
-  try{ _camSigRef.child(_camUserId).child(peerId).remove(); }catch(e){}
-}
-
-function applyBufferedIce(peerId){
-  var buf = _iceBuf[peerId];
-  var pc  = _peers[peerId];
-  if(!buf||!pc) return;
-  buf.forEach(function(ic){
-    pc.addIceCandidate(ic).catch(function(){});
-  });
-  _iceBuf[peerId] = [];
-}
-
-// ── Initiate offer to a peer (only called when iAmOfferer) ──
-function sendOffer(peerId){
-  var pc = getOrCreatePeer(peerId);
-  pc.createOffer({offerToReceiveVideo:true}).then(function(offer){
-    return pc.setLocalDescription(offer);
-  }).then(function(){
-    _camSigRef.child(peerId).child(_camUserId).update({
-      offer: JSON.stringify(pc.localDescription),
-      ts: Date.now()
-    });
-  }).catch(function(e){ console.warn('[cam] offer err', e); });
-}
-
-// ── Start listening for signals addressed to me ──
-function startSignalListener(){
-  if(_sigListening) return;
-  _sigListening = true;
-
-  // child_added fires for existing + new children
-  _camSigRef.child(_camUserId).on('child_added', handleSignalFrom);
-  _camSigRef.child(_camUserId).on('child_changed', handleSignalFrom);
-}
-
-function handleSignalFrom(snap){
-  var fromId = snap.key;
-  var data   = snap.val();
-  if(!data) return;
-
-  // ── Got offer (they are offerer, I answer) ──
-  if(data.offer){
-    var pc = getOrCreatePeer(fromId);
-    if(pc.signalingState !== 'stable') return; // already negotiating
-    var desc = JSON.parse(data.offer);
-    pc.setRemoteDescription(new RTCSessionDescription(desc)).then(function(){
-      applyBufferedIce(fromId);
-      return pc.createAnswer();
-    }).then(function(answer){
-      return pc.setLocalDescription(answer);
-    }).then(function(){
-      _camSigRef.child(fromId).child(_camUserId).update({
-        answer: JSON.stringify(pc.localDescription),
-        ts: Date.now()
-      });
-    }).catch(function(e){ console.warn('[cam] answer err', e); });
-  }
-
-  // ── Got answer (I was offerer) ──
-  if(data.answer){
-    var pc2 = _peers[fromId];
-    if(!pc2) return;
-    if(pc2.signalingState === 'have-local-offer'){
-      pc2.setRemoteDescription(new RTCSessionDescription(JSON.parse(data.answer))).then(function(){
-        applyBufferedIce(fromId);
-      }).catch(function(e){ console.warn('[cam] setRemote err', e); });
-    }
-  }
-
-  // ── Got ICE candidates ──
-  if(data.ice){
-    var pc3 = _peers[fromId];
-    Object.values(data.ice).forEach(function(ic){
-      if(!ic||!ic.c) return;
-      var candidate = new RTCIceCandidate({candidate:ic.c, sdpMid:ic.m, sdpMLineIndex:ic.i});
-      if(pc3 && pc3.remoteDescription){
-        pc3.addIceCandidate(candidate).catch(function(){});
-      } else {
-        // Buffer until remote description is set
-        if(!_iceBuf[fromId]) _iceBuf[fromId] = [];
-        _iceBuf[fromId].push(candidate);
-      }
-    });
-  }
-}
-
-// ── Connect to everyone currently broadcasting ──
-function connectToExistingCams(){
-  _camPresRef.once('value', function(snap){
-    var data = snap.val()||{};
-    Object.entries(data).forEach(function(pair){
-      var uid = pair[0], info = pair[1];
-      if(uid === _camUserId || !info.on) return;
-      // Only the offerer initiates; answerer waits for signal listener
-      if(iAmOfferer(uid)) sendOffer(uid);
-      // If I'm the answerer, the other side will offer me via their connectToExistingCams
-      // when they see me join (via child_changed on camPresence)
-    });
-  });
-}
-
-// ── Watch for new cams coming online / going offline ──
-_camPresRef.on('child_changed', function(snap){
-  var uid  = snap.key;
-  var info = snap.val()||{};
-  if(uid === _camUserId) return;
-
-  if(info.on && !_peers[uid]){
-    // Someone new turned on cam
-    // If I have my cam on AND I'm the offerer → send offer
-    // If I'm the answerer → do nothing, they'll offer me
-    if(_camStream && iAmOfferer(uid)){
-      sendOffer(uid);
-    }
-    // Always update strip to show they're present
-    updateCamStrip();
-  }
-
-  if(!info.on && _peers[uid]){
-    closePeer(uid);
-    updateCamStrip();
-  }
-});
-
-_camPresRef.on('child_removed', function(snap){
-  var uid = snap.key;
-  if(_peers[uid]){ closePeer(uid); updateCamStrip(); }
-});
-
-// Also watch for new child_added (first time a user turns on)
-_camPresRef.on('child_added', function(snap){
-  var uid  = snap.key;
-  var info = snap.val()||{};
-  if(uid === _camUserId || !info.on) return;
-  if(_camStream && iAmOfferer(uid) && !_peers[uid]){
-    sendOffer(uid);
-  }
-  updateCamStrip();
-});
-
-// ── Start camera ──
+// ── Start camera (join Agora channel) ──
 window.startCam = function(mode){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    showCamError({name:'NotSupportedError'}); return;
-  }
-  // Require a name
   var myName = getCamDisplayName();
   if(!myName || myName === 'Viewer'){
     var entered = prompt('Enter your name to enable cam:');
@@ -2363,127 +2118,146 @@ window.startCam = function(mode){
     var ni = document.getElementById('c-name');
     if(ni) ni.value = myName;
   }
-  _camUserName2 = myName;
+  _agoraMode = mode;
 
-  var constraints = (mode==='back')
-    ? {video:true, audio:false}
-    : {video:{facingMode:'user'}, audio:false};
+  loadAgoraSDK(function(){
+    var constraints = (mode === 'front')
+      ? {facingMode:'user', encoderConfig:'180p_1'}
+      : {encoderConfig:'240p_1'};
 
-  function applyStream(stream){
-    _camStream = stream;
-    _camMode   = mode;
+    AgoraRTC.createCameraVideoTrack(constraints).then(function(track){
+      _agoraTrack = track;
 
-    var vid = document.getElementById('cam-video');
-    if(vid){
-      vid.srcObject = stream;
-      vid.style.transform = (mode==='front') ? 'scaleX(-1)' : 'none';
-      vid.onloadedmetadata = function(){ vid.play().catch(function(){}); };
-    }
-    document.getElementById('cam-off-ui').style.display = 'none';
-    document.getElementById('cam-on-ui').style.display  = 'block';
-    var errEl = document.getElementById('cam-error-msg');
-    if(errEl) errEl.style.display = 'none';
-
-    var ov = document.getElementById('cam-name-overlay');
-    if(ov) ov.textContent = _camUserName2;
-
-    // Announce to Firebase (this triggers child_changed/child_added on others)
-    _myCamPresRef = _camPresRef.child(_camUserId);
-    _myCamPresRef.set({name:_camUserName2, on:true, ts:Date.now()});
-    _myCamPresRef.onDisconnect().update({on:false, ts:Date.now()});
-
-    // Start listening for incoming signals
-    startSignalListener();
-
-    // Connect to anyone already broadcasting
-    connectToExistingCams();
-
-    updateCamStrip();
-  }
-
-  navigator.mediaDevices.getUserMedia(constraints)
-    .then(applyStream)
-    .catch(function(err){
-      if(mode==='front' && (err.name==='OverconstrainedError'||err.name==='NotFoundError')){
-        navigator.mediaDevices.getUserMedia({video:true,audio:false}).then(applyStream).catch(showCamError);
-        return;
+      // Show local preview
+      var vid = document.getElementById('cam-video');
+      if(vid){
+        track.play(vid);
+        vid.style.transform = (mode === 'front') ? 'scaleX(-1)' : 'none';
       }
+      document.getElementById('cam-off-ui').style.display = 'none';
+      document.getElementById('cam-on-ui').style.display  = 'block';
+      var errEl = document.getElementById('cam-error-msg');
+      if(errEl) errEl.style.display = 'none';
+      var ov = document.getElementById('cam-name-overlay');
+      if(ov) ov.textContent = myName;
+
+      // Join Agora channel
+      _agoraClient = AgoraRTC.createClient({mode:'rtc', codec:'vp8'});
+
+      // Remote user published → subscribe and show their cam
+      _agoraClient.on('user-published', function(user, mediaType){
+        if(mediaType !== 'video') return;
+        _agoraClient.subscribe(user, mediaType).then(function(){
+          showRemoteCam(user);
+        });
+      });
+
+      // Remote user left → remove their tile
+      _agoraClient.on('user-unpublished', function(user){
+        removeRemoteCam(user.uid);
+      });
+      _agoraClient.on('user-left', function(user){
+        removeRemoteCam(user.uid);
+      });
+
+      // Use name as UID (hashed to number for Agora)
+      var uid = Math.abs(myName.split('').reduce(function(a,c){return((a<<5)-a)+c.charCodeAt(0)|0;},0)) % 999999 + 1;
+
+      return _agoraClient.join(AGORA_APP_ID, _agoraChannel, null, uid);
+    }).then(function(){
+      _agoraJoined = true;
+      return _agoraClient.publish(_agoraTrack);
+    }).then(function(){
+      updateCamStrip();
+      console.log('[cam] Agora joined & published');
+    }).catch(function(err){
       showCamError(err);
     });
+  });
 };
 
 // ── Stop camera ──
 window.stopCam = function(){
-  Object.keys(_peers).forEach(closePeer);
-  if(_camStream){ _camStream.getTracks().forEach(function(t){ t.stop(); }); _camStream = null; }
-  if(_myCamPresRef) _myCamPresRef.update({on:false, ts:Date.now()});
-  if(_sigListening){ _camSigRef.child(_camUserId).off(); _sigListening = false; }
-
+  if(_agoraTrack){
+    _agoraTrack.stop();
+    _agoraTrack.close();
+    _agoraTrack = null;
+  }
+  if(_agoraClient && _agoraJoined){
+    _agoraClient.leave().catch(function(){});
+    _agoraClient = null;
+    _agoraJoined = false;
+  }
   var vid = document.getElementById('cam-video');
   if(vid) vid.srcObject = null;
   document.getElementById('cam-off-ui').style.display = 'block';
   document.getElementById('cam-on-ui').style.display  = 'none';
-  updateCamStrip();
+
+  // Remove all remote tiles
+  var inner = document.getElementById('cam-strip-inner');
+  if(inner) inner.innerHTML = '';
+  var strip = document.getElementById('cam-strip');
+  if(strip) strip.style.display = 'none';
 };
 
-// ── Build cam strip ──
-function updateCamStrip(){
-  var strip = document.getElementById('cam-strip');
+// ── Show a remote user's cam tile ──
+function showRemoteCam(user){
   var inner = document.getElementById('cam-strip-inner');
-  if(!strip||!inner) return;
+  var strip  = document.getElementById('cam-strip');
+  if(!inner || !strip) return;
 
-  // Own tile
-  if(_camStream){
+  var tileId = 'cam-tile-' + user.uid;
+  var existing = document.getElementById(tileId);
+  if(!existing){
+    existing = makeCamTile(tileId, null, 'User #' + user.uid, false);
+    inner.appendChild(existing);
+  }
+
+  // Play remote video track into the tile's video element
+  var v = existing.querySelector('video');
+  if(v && user.videoTrack){
+    user.videoTrack.play(v);
+  }
+
+  strip.style.display = 'block';
+  updateCamCount();
+}
+
+function removeRemoteCam(uid){
+  var tile = document.getElementById('cam-tile-' + uid);
+  if(tile) tile.remove();
+  updateCamCount();
+  var inner = document.getElementById('cam-strip-inner');
+  var strip  = document.getElementById('cam-strip');
+  if(strip && inner && inner.children.length === 0) strip.style.display = 'none';
+}
+
+function updateCamCount(){
+  var inner = document.getElementById('cam-strip-inner');
+  var cc = document.getElementById('cam-count');
+  if(cc && inner) cc.textContent = inner.children.length + ' online';
+}
+
+// ── Update cam strip (own tile) ──
+function updateCamStrip(){
+  var inner = document.getElementById('cam-strip-inner');
+  var strip  = document.getElementById('cam-strip');
+  if(!inner || !strip) return;
+
+  if(_agoraTrack){
     var own = document.getElementById('cam-tile-own');
     if(!own){
-      own = makeCamTile('cam-tile-own', null, _camUserName2||'You', true);
+      own = makeCamTile('cam-tile-own', null, getCamDisplayName() + ' (you)', true);
       inner.insertBefore(own, inner.firstChild);
+      var v = own.querySelector('video');
+      if(v) _agoraTrack.play(v);
     }
-    var ov = own.querySelector('video');
-    if(ov && ov.srcObject !== _camStream) ov.srcObject = _camStream;
-    var mainVid = document.getElementById('cam-video');
-    if(mainVid && ov) ov.style.transform = mainVid.style.transform;
-    var nt = own.querySelector('.cam-name-tag');
-    if(nt) nt.textContent = (_camUserName2||'You') + ' (you)';
+    strip.style.display = 'block';
   } else {
     var own2 = document.getElementById('cam-tile-own');
     if(own2) own2.remove();
   }
-
-  // Remote tiles — read names from camPresence
-  _camPresRef.once('value', function(snap){
-    var presence = snap.val()||{};
-
-    // Add/update remote stream tiles
-    Object.entries(_remoteStreams).forEach(function(pair){
-      var uid = pair[0], rStream = pair[1];
-      var tileId = 'cam-tile-' + uid;
-      var peerName = (presence[uid] && presence[uid].name) || 'User';
-      var existing = document.getElementById(tileId);
-      if(!existing){
-        var tile = makeCamTile(tileId, rStream, peerName, false);
-        inner.appendChild(tile);
-      } else {
-        var rv = existing.querySelector('video');
-        if(rv && rv.srcObject !== rStream) rv.srcObject = rStream;
-        var nt2 = existing.querySelector('.cam-name-tag');
-        if(nt2) nt2.textContent = peerName;
-      }
-    });
-
-    // Remove stale tiles
-    inner.querySelectorAll('[id^="cam-tile-"]').forEach(function(tile){
-      if(tile.id === 'cam-tile-own') return;
-      var uid2 = tile.id.replace('cam-tile-','');
-      if(!_remoteStreams[uid2]) tile.remove();
-    });
-
-    // Show/hide strip + update count
-    var count = inner.children.length;
-    strip.style.display = count > 0 ? 'block' : 'none';
-    var cc = document.getElementById('cam-count');
-    if(cc) cc.textContent = count + ' online';
-  });
+  updateCamCount();
 }
 
 function makeCamTile(id, stream, name, isOwn){
@@ -2497,7 +2271,7 @@ function makeCamTile(id, stream, name, isOwn){
     + ';flex-shrink:0;';
 
   var v = document.createElement('video');
-  v.autoplay=true; v.playsInline=true; v.muted=true;
+  v.autoplay = true; v.playsInline = true; v.muted = true;
   v.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
   if(stream) v.srcObject = stream;
   tile.appendChild(v);
@@ -2536,31 +2310,15 @@ function showCamError(err){
   else if(err.name==='NotFoundError') msg = 'No camera found on this device.';
   else if(err.name==='NotReadableError'||err.name==='AbortError') msg = 'Camera is busy — close other apps using it and retry.';
   else if(err.name==='NotSupportedError') msg = 'Camera not supported on this browser.';
-  else msg = 'Camera error: ' + (err.message||err.name||err);
+  else msg = 'Camera error: ' + (err.message||err.name||String(err));
   var e = document.getElementById('cam-error-msg');
-  if(e){ e.textContent=msg; e.style.display='block'; }
+  if(e){ e.textContent = msg; e.style.display = 'block'; }
 }
-
-// Refresh strip + name every 4s
-setInterval(function(){
-  if(!_camStream && Object.keys(_remoteStreams).length===0) return;
-  if(_camStream){
-    var n = getCamDisplayName();
-    if(n !== _camUserName2){
-      _camUserName2 = n;
-      var ov = document.getElementById('cam-name-overlay');
-      if(ov) ov.textContent = n;
-      if(_myCamPresRef) _myCamPresRef.update({name:n});
-    }
-  }
-  updateCamStrip();
-}, 4000);
 
 // Clean up on page close
 window.addEventListener('beforeunload', function(){
-  if(_myCamPresRef) _myCamPresRef.update({on:false, ts:Date.now()});
-  Object.keys(_peers).forEach(closePeer);
-  if(_camStream) _camStream.getTracks().forEach(function(t){ t.stop(); });
+  if(_agoraTrack){ try{ _agoraTrack.stop(); _agoraTrack.close(); }catch(e){} }
+  if(_agoraClient && _agoraJoined){ try{ _agoraClient.leave(); }catch(e){} }
 });
 
 
