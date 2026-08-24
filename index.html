@@ -668,7 +668,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+window.addEventListener("error",e=>{try{toast("⚠ "+(e.message||"script error"),"err");}catch(_){}});
+window.addEventListener("unhandledrejection",e=>{try{const r=e.reason;toast("⚠ "+((r&&r.message)||r||"async error"),"err");}catch(_){}});
 const pad=n=>String(n).padStart(2,"0");
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const DAY_LBL=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -854,7 +856,7 @@ const VIEW_TITLES={dashboard:"Mission Control",alarms:"Smart Alarms",focus:"Focu
 function showView(name){
   $$(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));
   $$(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));
-  $("#greetLine").textContent=`${VIEW_TITLES[name]??""}`;
+  $("#greetLine").textContent=VIEW_TITLES[name]||"";
   history.replaceState(null,"","#"+name);
   $("#sidebar").classList.remove("open");$("#sbBackdrop").classList.remove("show");
   window.scrollTo({top:0,behavior:"smooth"});
@@ -881,8 +883,9 @@ function nextOccurrenceFor(alarm){
 function renderAlarms(){
   const list=$("#alarmList");
   const sorted=[...state.alarms].sort((a,b)=>{
-    const na=nextOccurrenceFor(a)?.getTime()??Infinity;
-    const nb=nextOccurrenceFor(b)?.getTime()??Infinity;
+    const oa=nextOccurrenceFor(a),ob=nextOccurrenceFor(b);
+    const na=oa?oa.getTime():Infinity;
+    const nb=ob?ob.getTime():Infinity;
     return na-nb;});
   $("#alarmCount").textContent=state.alarms.filter(a=>a.enabled!==false).length;
   if(!sorted.length){list.innerHTML=`<div class="empty"><span class="big">⏰</span>No alarms yet. Create your first smart alarm — e.g., <b>04:30 AM Biology Active Recall</b>.</div>`;return;}
@@ -1311,7 +1314,7 @@ function renderTopics(){
   if(!state.topics.length){list.innerHTML=`<div class="empty"><span class="big">📚</span>No topics tracked yet. Add your syllabus units to unlock spaced repetition.</div>`;return;}
   list.innerHTML=[...state.topics].sort((a,b)=>a.done-b.done).map(t=>{
     const sp=subj(t.subjectId);
-    const rv=t.reviews?.length?t.reviews.map(r=>{const[off,ts]=r.split("@");
+    const rv=t.reviews&&t.reviews.length?t.reviews.map(r=>{const[off,ts]=r.split("@");
       const past=Date.now()>+ts;const didOff=+off.split("d")[0];
       const completed=t.reviewsDone>=didOff;
       return `<span style="color:${completed?"#34d399":past?"#fbbf24":"var(--ink-faint)"}">${completed?"✔":past?"•":"○"}D${didOff}</span>`;}).join(" "):"";
@@ -1363,7 +1366,7 @@ function renderCharts(){
     const ms=marksSorted(sp.id).map(m=>({x:m.date,y:pctOf(m)}));
     return{label:sp.name,data:ms,borderColor:sp.color,backgroundColor:sp.color+"33",
       tension:.35,pointRadius:4,pointBackgroundColor:sp.color,borderWidth:2.5,spanGaps:true};});
-  trendChart?.destroy();
+  if(trendChart)trendChart.destroy();
   trendChart=new Chart(tc,{type:"line",
     data:{datasets:tData},
     options:{responsive:true,maintainAspectRatio:false,
@@ -1374,7 +1377,7 @@ function renderCharts(){
   const radarData=SUBJECT_PRESETS.map(sp=>{
     const last=marksSorted(sp.id).slice(-5);
     return last.length?Math.round(last.reduce((a,m)=>a+pctOf(m),0)/last.length):0;});
-  radarChart?.destroy();
+  if(radarChart)radarChart.destroy();
   radarChart=new Chart(rc,{type:"radar",
     data:{labels:SUBJECT_PRESETS.map(s=>s.name),
       datasets:[{label:"Strength %",data:radarData,
@@ -1519,7 +1522,7 @@ function streakDays(){
 function renderDashboardStats(){
   const now=new Date(),key=dateKey(now);
   const todayAlarms=state.alarms.filter(a=>a.enabled!==false&&(
-    (a.time&&(!a.days?.length||a.days.includes(now.getDay())))||(a.fireAt&&dateKey(new Date(a.fireAt))===key))).length;
+    (a.time&&((!a.days||!a.days.length)||a.days.includes(now.getDay())))||(a.fireAt&&dateKey(new Date(a.fireAt))===key))).length;
   $("#stAlarms").textContent=todayAlarms;
   $("#statWeek").textContent=fmtHM(weekMinutes());
   $("#statStreak").textContent=streakDays()+" day"+(streakDays()===1?"":"s");
@@ -1605,10 +1608,23 @@ $("#notifyBtn").addEventListener("click",()=>{
 });
 $("#hydEnable").addEventListener("change",e=>{state.settings.hydration.enabled=e.target.checked;DB.save();});
 $("#hydEvery").addEventListener("change",e=>{state.settings.hydration.every=clamp(+e.target.value||45,15,120);e.target.value=state.settings.hydration.every;DB.save();});
-$("#kaEnable").addEventListener("change",async e=>{
-  state.settings.keepAlive=e.target.checked;DB.save();
-  if(e.target.checked){AudioEngine.ensure();await refreshKeepAlive();toast("Phone Alert Mode ON — screen & tab stay alive 🔒");}
-  else{KeepAlive.stopAll();toast("Phone Alert Mode off");updateKAStatus();}
+$("#kaEnable").addEventListener("change",function(e){
+  const on=e.target.checked;
+  try{
+    state.settings.keepAlive=on;DB.save();
+  }catch(err){toast("Save failed: "+err.message,"err");}
+  updateKAStatus();
+  if(on){
+    try{AudioEngine.ensure();}catch(err){}
+    refreshKeepAlive().then(()=>{
+      toast(KeepAlive.lock&&KeepAlive.lock.released===false
+        ?"Phone Alert Mode ON — screen-awake ✓ + tab-alive ✓ 🔒"
+        :"Phone Alert Mode ON — tab-alive ✓ (wake-lock unsupported here) 🔒");
+    }).catch(()=>toast("Phone Alert Mode ON (basic mode) 🔒"));
+  }else{
+    KeepAlive.stopAll();
+    toast("Phone Alert Mode off");
+  }
 });
 $("#poApply").addEventListener("click",()=>{
   Object.assign(state.settings.pomodoro,{
