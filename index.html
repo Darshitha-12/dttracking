@@ -138,6 +138,7 @@ select option{background:#0d241d;color:var(--ink)}
 .btn.sm{padding:7px 12px;font-size:12px;border-radius:10px}
 .btn.icon{padding:8px 10px}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+a.btn{text-decoration:none}
 
 .sw{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
 .sw input{opacity:0;width:0;height:0}
@@ -586,8 +587,18 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
           <div class="field"><label>Chat ID (message @userinfobot)</label><input type="text" id="tgChat" placeholder="e.g., 812345678"></div>
           <div class="row">
             <button class="btn teal sm" id="tgTest">🚀 Send test alert</button>
+            <a class="btn ghost sm" href="https://t.me/BotFather" target="_blank" rel="noopener">➕ @BotFather</a>
+            <a class="btn ghost sm" href="https://t.me/userinfobot" target="_blank" rel="noopener">🆔 @userinfo</a>
           </div>
           <div class="hint">High-priority alarms POST directly to the Telegram Bot API from your browser — no server needed.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3><span class="ico">📱</span>Phone Alert Mode</h3>
+            <span class="badge" style="--sc:#F59E0B">android · chrome</span></div>
+          <div class="toggle-line">Keep screen awake &amp; tab un-throttled so alarms always ring<span class="sw"><input type="checkbox" id="kaEnable"><span class="sl"></span></span></div>
+          <div class="kv"><span>Engine status</span><b id="kaStatus">off</b></div>
+          <div class="hint">Screen Wake-Lock + inaudible audio keep-alive — phone eka BioPulse freeze karanne naha, alarm ekang sound + vibrate + notification yanawa. App eka sampurnayen close nam Telegram push eka (above) thamai wada karanne.</div>
         </div>
 
         <div class="card">
@@ -675,7 +686,7 @@ const LS_KEY="biopulse_state_v1";
 function defaults(){return{
   profile:{name:"Scholar",examDate:"",targetGrade:"A",revHours:350,dailyHr:4},
   alarms:[],topics:[],marks:[],sessions:[],fired:{},
-  settings:{sound:"chime",ttsOn:true,voiceName:"",rate:1,pitch:1,
+  settings:{sound:"chime",ttsOn:true,voiceName:"",rate:1,pitch:1,keepAlive:false,
     telegram:{enabled:false,token:"",chatId:"",all:false},
     pomodoro:{study:50,break:10,longBreak:30,cycles:4},
     hydration:{enabled:true,every:45}},
@@ -786,6 +797,40 @@ function notifyDesktop(title,body){
     new Notification(title,{body});
   }catch(e){}
 }
+
+/* ============ 📱 Phone keep-alive (wake lock + silent audio) ============ */
+const KeepAlive={lock:null,osc:null,
+  async ensureAudio(){
+    if(this.osc)return;
+    try{
+      const c=AudioEngine.ensure();
+      this.osc=c.createOscillator();const g=c.createGain();
+      this.osc.frequency.value=42;g.gain.value=.0015;
+      this.osc.connect(g).connect(c.destination);this.osc.start();
+    }catch(e){}
+  },
+  async acquire(){
+    try{
+      if("wakeLock"in navigator&&(!this.lock||this.lock.released))
+        this.lock=await navigator.wakeLock.request("screen");
+    }catch(e){}
+  },
+  stopAll(){
+    try{this.lock&&this.lock.release()}catch(e){}
+    try{this.osc&&this.osc.stop()}catch(e){}
+    this.lock=null;this.osc=null;
+  }
+};
+async function refreshKeepAlive(){if(state.settings.keepAlive){await KeepAlive.acquire();await KeepAlive.ensureAudio();}updateKAStatus();}
+function updateKAStatus(){
+  const el=$("#kaStatus");if(!el)return;
+  if(!state.settings.keepAlive){el.textContent="off";el.style.color="var(--ink-dim)";return;}
+  const parts=["armed"];
+  if(KeepAlive.lock&&!KeepAlive.lock.released)parts.push("screen-awake ✓");
+  if(KeepAlive.osc)parts.push("tab-alive ✓");
+  el.textContent=parts.join(" · ");el.style.color="#34d399";
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refreshKeepAlive();});
 
 const fmtClock=d=>`${pad(d.getHours()%12||12)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${d.getHours()<12?"AM":"PM"}`;
 const fmtHM=min=>min>=60?`${Math.floor(min/60)}h ${Math.round(min%60)}m`:`${Math.round(min)}m`;
@@ -1012,7 +1057,8 @@ function processQueue(){
   $("#ovActions").innerHTML=acts.join("");
   $("#overlay").classList.add("show");
   AudioEngine.play(a.sound);
-  Ringing.loopTimer=setInterval(()=>AudioEngine.play(a.sound),3400);
+  try{navigator.vibrate&&navigator.vibrate([600,150,600,150,1000]);}catch(e){}
+  Ringing.loopTimer=setInterval(()=>{AudioEngine.play(a.sound);try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
   if(a.tts)Speech.speak(a.label,{force:true});
   if(high||state.settings.telegram.all)
     sendTelegram(`<b>${high?"🚨 HIGH PRIORITY ALARM":"🔔 BioPulse Alert"}</b>\n${esc(a.label)}\n🕒 ${new Date().toLocaleTimeString()}`)
@@ -1046,6 +1092,7 @@ $("#ovActions").addEventListener("click",e=>{
 
 function stopRinging(){
   clearInterval(Ringing.loopTimer);Ringing.loopTimer=null;
+  try{navigator.vibrate&&navigator.vibrate(0);}catch(e){}
   try{speechSynthesis.cancel();}catch(e){}
   $("#overlay").classList.remove("show");
   Ringing.current=null;
@@ -1528,6 +1575,7 @@ function loadSettingsUI(){
   $("#ttsOn").checked=s.ttsOn;$("#ttsRate").value=s.rate;$("#ttsPitch").value=s.pitch;
   $("#ttsRateVal").textContent=(+s.rate).toFixed(1)+"×";
   $("#hydEnable").checked=s.hydration.enabled;$("#hydEvery").value=s.hydration.every;
+  $("#kaEnable").checked=!!s.keepAlive;updateKAStatus();
   $("#poStudy").value=s.pomodoro.study;$("#poBreak").value=s.pomodoro.break;
   $("#poLong").value=s.pomodoro.longBreak;$("#poCycles").value=s.pomodoro.cycles;
   updateStorageInfo();
@@ -1557,6 +1605,11 @@ $("#notifyBtn").addEventListener("click",()=>{
 });
 $("#hydEnable").addEventListener("change",e=>{state.settings.hydration.enabled=e.target.checked;DB.save();});
 $("#hydEvery").addEventListener("change",e=>{state.settings.hydration.every=clamp(+e.target.value||45,15,120);e.target.value=state.settings.hydration.every;DB.save();});
+$("#kaEnable").addEventListener("change",async e=>{
+  state.settings.keepAlive=e.target.checked;DB.save();
+  if(e.target.checked){AudioEngine.ensure();await refreshKeepAlive();toast("Phone Alert Mode ON — screen & tab stay alive 🔒");}
+  else{KeepAlive.stopAll();toast("Phone Alert Mode off");updateKAStatus();}
+});
 $("#poApply").addEventListener("click",()=>{
   Object.assign(state.settings.pomodoro,{
     study:clamp(+$("#poStudy").value||50,10,120),break:clamp(+$("#poBreak").value||10,3,30),
@@ -1829,7 +1882,11 @@ function renderAll(){
   setInterval(renderDashboardStats,30000);
   if("speechSynthesis"in window){Speech.refresh();speechSynthesis.onvoiceschanged=()=>Speech.refresh();}
   window.addEventListener("beforeunload",()=>{saveLive();});
-  document.addEventListener("pointerdown",function once(){AudioEngine.ensure();document.removeEventListener("pointerdown",once);},{once:true});
+  document.addEventListener("pointerdown",async function once(){
+    AudioEngine.ensure();document.removeEventListener("pointerdown",once);
+    if(state.settings.keepAlive)await refreshKeepAlive();
+    else if("Notification"in window&&Notification.permission==="default")ensureNotifyPerm();
+  },{once:true});
 })();
 </script>
 </body>
