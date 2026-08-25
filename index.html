@@ -943,7 +943,7 @@ async function sendTelegram(text){
 function notifyDesktop(title,body){
   try{
     if(!("Notification"in window)||Notification.permission!=="granted")return;
-    new Notification(title,{body});
+    new Notification(title,{body,icon:"icon-192.png"});
   }catch(e){}
 }
 
@@ -951,19 +951,10 @@ function notifyDesktop(title,body){
 let focusNotif=null;
 function notifyFocusUpdate(){
   try{
-    if(!("Notification"in window)){
-      if(state.live.running)toast("Notifications not supported on this browser","err");
-      return;
-    }
-    if(Notification.permission!=="granted"){
-      if(state.live.running&&Notification.permission==="default"){
-        toast("Tap 'Allow' for focus timer notifications 🔔","err");
-        Notification.requestPermission().then(p=>{if(p==="granted")notifyFocusUpdate();}).catch(()=>{});
-      }
-      return;
-    }
+    if(!("Notification"in window)||Notification.permission!=="granted")return;
     const L=state.live;
     if(!L.running||L.phase==="idle"){closeFocusNotif();return;}
+    try{if(focusNotif)focusNotif.close();}catch(x){}
     const rem=Math.max(0,L.endTs-Date.now());
     const m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);
     const timeStr=m+":"+String(s).padStart(2,"0");
@@ -972,11 +963,11 @@ function notifyFocusUpdate(){
     const subName=subj($("#pomSubject")?($("#pomSubject").value||"bio"):"bio").name;
     const n=new Notification(phaseEmoji+" "+phaseName,{
       body:timeStr+" remaining \u00B7 "+subName,
-      tag:"biopulse-focus",silent:true,renotify:true
+      tag:"biopulse-focus",icon:"icon-192.png",renotify:true
     });
     focusNotif=n;
-    n.onerror=()=>{console.warn("Notification error");};
-  }catch(e){console.warn("notifyFocusUpdate:",e);}
+    n.onerror=()=>{};
+  }catch(e){}
 }
 function closeFocusNotif(){
   try{if(focusNotif){focusNotif.close();focusNotif=null;}}catch(e){}
@@ -1913,7 +1904,7 @@ $("#notifTestBtn").addEventListener("click",()=>{
     return;
   }
   try{
-    new Notification("🧪 BioPulse Test",{body:"If you see this, notifications are WORKING! 🔔",tag:"bp-test",icon:"icon-192.png"});
+    new Notification("🧪 BioPulse Test",{body:"If you see this, notifications are WORKING! 🔔",tag:"bp-test",icon:"icon-192.png",renotify:true});
     toast("Test notification sent — check your phone! 📱");
   }catch(e){toast("Notification failed: "+e.message,"err");}
 });
