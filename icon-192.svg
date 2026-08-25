@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="#0F2C23"/>
+  <rect x="4" y="4" width="184" height="184" rx="38" fill="none" stroke="url(#g1)" stroke-width="2.5" opacity=".35"/>
+  <!-- DNA helix strand 1 -->
+  <path d="M72 40 C72 40, 120 64, 120 96 C120 128, 72 152, 72 152" fill="none" stroke="url(#g1)" stroke-width="7" stroke-linecap="round"/>
+  <!-- DNA helix strand 2 -->
+  <path d="M120 40 C120 40, 72 64, 72 96 C72 128, 120 152, 120 152" fill="none" stroke="url(#g2)" stroke-width="7" stroke-linecap="round"/>
+  <!-- Cross rungs -->
+  <line x1="82" y1="56" x2="110" y2="56" stroke="#10B981" stroke-width="3.5" stroke-linecap="round" opacity=".7"/>
+  <line x1="74" y1="76" x2="118" y2="76" stroke="#06B6D4" stroke-width="3.5" stroke-linecap="round" opacity=".7"/>
+  <line x1="78" y1="96" x2="114" y2="96" stroke="#10B981" stroke-width="3.5" stroke-linecap="round" opacity=".8"/>
+  <line x1="74" y1="116" x2="118" y2="116" stroke="#06B6D4" stroke-width="3.5" stroke-linecap="round" opacity=".7"/>
+  <line x1="82" y1="136" x2="110" y2="136" stroke="#10B981" stroke-width="3.5" stroke-linecap="round" opacity=".7"/>
+  <!-- Glow dots -->
+  <circle cx="96" cy="56" r="4" fill="#10B981" opacity=".9"/>
+  <circle cx="96" cy="96" r="5" fill="#fff" opacity=".6"/>
+  <circle cx="96" cy="136" r="4" fill="#06B6D4" opacity=".9"/>
+</svg>

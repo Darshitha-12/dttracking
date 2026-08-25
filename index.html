@@ -3,9 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0F2C23">
 <title>BioPulse · Biology Stream Study OS</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+<meta name="description" content="Complete biology stream study management system with smart alarms, Pomodoro timer, spaced repetition, marks analytics, AI coach, and cross-device cloud sync.">
+<meta name="theme-color" content="#0F2C23">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BioPulse">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<link rel="icon" href="icon-192.svg" type="image/svg+xml">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -831,9 +837,11 @@ const SoundDB={
 function getAudioDuration(blob){
   return new Promise(res=>{const url=URL.createObjectURL(blob);
     const a=new Audio(url);
-    a.onloadedmetadata=()=>{URL.revokeObjectURL(url);res(a.duration||0);};
-    a.onerror=()=>{URL.revokeObjectURL(url);res(0);};
-    setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}res(0);},6000);});
+    const done=(v)=>{try{URL.revokeObjectURL(url);}catch(e){}res(v);};
+    a.onloadedmetadata=()=>{const d=a.duration;done((d&&isFinite(d)&&d>0)?d:0);};
+    a.onerror=()=>done(0);
+    a.onstalled=()=>done(0);
+    setTimeout(()=>done(0),4000);});
 }
 let ringAudio=null;
 async function playCustomRing(id){
@@ -1745,11 +1753,11 @@ $("#csUpload").addEventListener("change",async e=>{
   toast("Processing…");
   const name=($("#csName").value.trim()||file.name.replace(/\.[^.]+$/,"")).slice(0,30);
   const blob=file;const dur=await getAudioDuration(blob);
-  if(dur<.3){toast("File too short or unreadable","err");e.target.value="";return;}
-  if(dur>120){toast("Max 2 minutes","err");e.target.value="";return;}
-  await SoundDB.save({id:uid(),name,duration:dur,blob});
+  if(dur===0){toast("Could not read duration — saving anyway (will still play)…");}
+  if(dur>0&&dur>120){toast("Max 2 minutes","err");e.target.value="";return;}
+  await SoundDB.save({id:uid(),name,duration:dur||0,blob});
   await refreshSoundList();await populateSoundSelector();
-  toast("Sound added: "+name+" ("+dur.toFixed(1)+"s) 🔊");
+  toast("Sound added: "+name+(dur>0?" ("+dur.toFixed(1)+"s)":"")+" 🔊");
   e.target.value="";$("#csName").value="";
 });
 $("#csRecStart").addEventListener("click",async()=>{
@@ -1761,11 +1769,11 @@ $("#csRecStart").addEventListener("click",async()=>{
     mediaRec.onstop=async()=>{
       stream.getTracks().forEach(t=>t.stop());
       const blob=new Blob(chunks,{type:mime});const dur=await getAudioDuration(blob);
-      if(dur<.5){toast("Recording too short","err");return;}
+      if(dur<.5&&dur>0){toast("Recording too short","err");return;}
       const name=($("#csName").value.trim()||"Rec "+new Date().toLocaleTimeString()).slice(0,30);
-      await SoundDB.save({id:uid(),name,duration:dur,blob});
+      await SoundDB.save({id:uid(),name,duration:dur||0,blob});
       await refreshSoundList();await populateSoundSelector();
-      toast("Saved: "+name+" ("+dur.toFixed(1)+"s)");};
+      toast("Saved: "+name+" ("+Math.max(dur,0).toFixed(1)+"s)");};
     mediaRec.start();
     $("#csRecStart").disabled=true;$("#csRecStop").disabled=false;
     $("#csRecStatus").textContent="🔴 recording — click Stop when ready (auto-stops at 30s)";
@@ -2117,6 +2125,11 @@ function renderAll(){
     else if("Notification"in window&&Notification.permission==="default")ensureNotifyPerm();
   },{once:true});
 })();
+
+/* PWA Service Worker Registration */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
 </script>
 </body>
 </html>
