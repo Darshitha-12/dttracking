@@ -211,8 +211,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .timer-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px}
 
 .overlay{position:fixed;inset:0;z-index:200;display:none;place-items:center;padding:20px;
-  background:rgba(3,12,9,.78);backdrop-filter:blur(20px)}
+  background:rgba(3,12,9,.92);backdrop-filter:blur(24px);
+  animation:ovBgIn .4s ease}
 .overlay.show{display:grid}
+@keyframes ovBgIn{from{opacity:0}to{opacity:1}}
 .ov-card{width:min(480px,94vw);text-align:center;padding:38px 30px;border-radius:26px;position:relative;
   background:linear-gradient(165deg,rgba(15,44,35,.97),rgba(7,21,18,.98));
   border:1px solid rgba(16,185,129,.4);box-shadow:0 0 70px rgba(16,185,129,.28);animation:ovIn .3s ease}
@@ -221,6 +223,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
   background:radial-gradient(circle at 35% 30%,rgba(16,185,129,.35),rgba(6,182,212,.12));
   border:1.5px solid rgba(16,185,129,.5);animation:pulse 1.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(16,185,129,.45)}50%{transform:scale(1.06);box-shadow:0 0 0 22px rgba(16,185,129,0)}}
+.overlay.hot .ov-pulse{background:radial-gradient(circle at 35% 30%,rgba(244,63,94,.4),rgba(251,113,133,.15));
+  border-color:rgba(244,63,94,.6);animation:pulseHot 1s ease-in-out infinite}
+@keyframes pulseHot{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(244,63,94,.5)}50%{transform:scale(1.1);box-shadow:0 0 0 30px rgba(244,63,94,0)}}
+.screen-flash{position:fixed;inset:0;z-index:199;pointer-events:none;animation:flashOut .8s ease-out forwards}
+@keyframes flashOut{0%{opacity:.6}100%{opacity:0}}
 #ovKicker{font-size:11px;font-weight:800;letter-spacing:2.6px;text-transform:uppercase;color:var(--emerald);margin-bottom:8px}
 #ovKicker.hot{color:#fb7185}
 #ovTitle{font-size:23px;font-weight:800;line-height:1.3;margin-bottom:6px}
@@ -920,6 +927,34 @@ function notifyDesktop(title,body){
   }catch(e){}
 }
 
+/* ============ Focus Timer persistent notification ============ */
+let focusNotif=null;
+function notifyFocusUpdate(){
+  try{
+    if(!("Notification"in window)||Notification.permission!=="granted")return;
+    const L=state.live;
+    if(!L.running||L.phase==="idle"){closeFocusNotif();return;}
+    const rem=Math.max(0,L.endTs-Date.now());
+    const m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);
+    const timeStr=m+":"+String(s).padStart(2,"0");
+    const phaseEmoji=L.phase==="study"?"\u{1F534}":"\u2615";
+    const phaseName=L.phase==="study"?"Deep Focus":"Break";
+    const subName=subj($("#pomSubject")?($("#pomSubject").value||"bio"):"bio").name;
+    focusNotif=new Notification(phaseEmoji+" "+phaseName,{
+      body:timeStr+" remaining \u00B7 "+subName,
+      tag:"biopulse-focus",icon:"icon-192.png",silent:true,renotify:true
+    });
+  }catch(e){}
+}
+function closeFocusNotif(){
+  try{if(focusNotif){focusNotif.close();focusNotif=null;}}catch(e){}
+}
+function flashScreen(color){
+  const f=document.createElement("div");
+  f.className="screen-flash";f.style.background=color;
+  document.body.appendChild(f);setTimeout(()=>f.remove(),900);
+}
+
 /* ============ 📱 Phone keep-alive (wake lock + silent audio) ============ */
 const KeepAlive={lock:null,osc:null,
   async ensureAudio(){
@@ -1182,7 +1217,11 @@ function processQueue(){
     acts.push(...SNOOZES.map(mn=>`<button class="btn ghost" data-snooze="${mn}">😴 Snooze ${mn}m</button>`));
   acts.push(`<button class="btn primary" data-done="1">✔ Done</button>`);
   $("#ovActions").innerHTML=acts.join("");
-  $("#overlay").classList.add("show");
+  const ov=$("#overlay");
+  ov.classList.toggle("hot",!!high);
+  ov.classList.add("show");
+  try{showView("alarms");}catch(e){}
+  if(high)flashScreen("rgba(244,63,94,.5)");else flashScreen("rgba(16,185,129,.35)");
   try{navigator.vibrate&&navigator.vibrate([600,150,600,150,1000]);}catch(e){}
   const isCustom=a.sound&&a.sound.startsWith("custom:");
   if(isCustom){
@@ -1329,21 +1368,26 @@ function pomStartPause(){
   AudioEngine.ensure();
   if(L.running){
     L.pausedMs=Math.max(0,L.endTs-Date.now());L.running=false;
+    closeFocusNotif();
   }else{
     if(L.phase==="idle"){L.phase="study";L.pausedMs=phaseLen("study");L.lastHyd=Date.now();}
     L.endTs=Date.now()+L.pausedMs;L.pausedMs=0;L.running=true;
     Speech.speak(L.phase==="study"?"Focus session started. Good luck!":"Break time started.");
+    setTimeout(()=>notifyFocusUpdate(),1500);
   }
   clearInterval(pomTimer);
   if(L.running)pomTimer=setInterval(pomTick,400);
   pomRender();
 }
 
+let _focusNotifTick=0;
 function pomTick(){
   const L=state.live;
   if(!L.running)return;
   const now=Date.now();
   if(now>=L.endTs){phaseComplete();return;}
+  _focusNotifTick++;
+  if(_focusNotifTick%75===0)notifyFocusUpdate();
   const hyd=state.settings.hydration;
   if(L.phase==="study"&&hyd.enabled&&(now-L.lastHyd)>=hyd.every*60000){
     L.lastHyd=now;
@@ -1354,6 +1398,7 @@ function pomTick(){
 
 function phaseComplete(){
   const L=state.live,c=pomConfig();
+  closeFocusNotif();
   if(L.phase==="study"){
     L.cyclesDone++;L.setDone++;
     state.sessions.push({id:uid(),subjectId:$("#pomSubject").value||"bio",minutes:c.study,end:Date.now()});
@@ -1370,6 +1415,7 @@ function phaseComplete(){
   }
   L.running=true;L.endTs=Date.now()+phaseLen(L.phase);L.pausedMs=0;
   pomRender();
+  setTimeout(()=>notifyFocusUpdate(),2000);
 }
 
 function pomSkip(){
@@ -1382,6 +1428,7 @@ function pomTickSafe(){if(state.live.running)phaseComplete();else{state.live.pha
 
 function pomReset(){
   clearInterval(pomTimer);pomTimer=null;
+  closeFocusNotif();
   const L=state.live;
   Object.assign(L,{running:false,phase:"idle",pausedMs:0,cyclesDone:0,setDone:0,lastHyd:Date.now()});
   pomRender();
@@ -2119,7 +2166,7 @@ function renderAll(){
   setInterval(countdownTick,1000);
   setInterval(renderDashboardStats,30000);
   if("speechSynthesis"in window){Speech.refresh();speechSynthesis.onvoiceschanged=()=>Speech.refresh();}
-  window.addEventListener("beforeunload",()=>{saveLive();});
+  window.addEventListener("beforeunload",()=>{saveLive();closeFocusNotif();});
   document.addEventListener("pointerdown",async function once(){
     AudioEngine.ensure();document.removeEventListener("pointerdown",once);
     if(state.settings.keepAlive)await refreshKeepAlive();
