@@ -671,6 +671,10 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 window.addEventListener("error",e=>{try{toast("⚠ "+(e.message||"script error"),"err");}catch(_){}});
 window.addEventListener("unhandledrejection",e=>{try{const r=e.reason;toast("⚠ "+((r&&r.message)||r||"async error"),"err");}catch(_){}});
+
+let uiTouchTs=0;
+["pointerdown","change","input","keydown"].forEach(ev=>document.addEventListener(ev,function(){uiTouchTs=Date.now();},true));
+const recentTouch=function(ms){return Date.now()-uiTouchTs<(ms||9000);};
 const pad=n=>String(n).padStart(2,"0");
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const DAY_LBL=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -712,6 +716,7 @@ const DB={
           hydration:{...d.settings.hydration,...((parsed.settings||{}).hydration||{})}},
         live:{...d.live,...(parsed.live||{})},
         cloud:{...d.cloud,...(parsed.cloud||{})}};
+      if(!state._mut)state._mut=Date.now();
     }catch(e){console.warn("State restore failed",e);}
   },
   save(){
@@ -1569,18 +1574,21 @@ $("#tgtInput").addEventListener("change",e=>{
 });
 
 /* ============ Settings ============ */
+function setVal(el,v){if(!el)return;if(document.activeElement===el)return;el.value=v;}
+function setChk(el,v){if(!el||document.activeElement===el)return;el.checked=!!v;}
+
 function loadSettingsUI(){
   const s=state.settings,p=state.profile;
-  $("#pfName").value=p.name;$("#pfExamDate").value=p.examDate;$("#pfTarget").value=p.targetGrade;
-  $("#pfRevHours").value=p.revHours;$("#pfDailyHr").value=p.dailyHr;
-  $("#tgEnabled").checked=s.telegram.enabled;$("#tgToken").value=s.telegram.token;$("#tgChat").value=s.telegram.chatId;
-  $("#tgAll").checked=!!s.telegram.all;
-  $("#ttsOn").checked=s.ttsOn;$("#ttsRate").value=s.rate;$("#ttsPitch").value=s.pitch;
+  setVal($("#pfName"),p.name);setVal($("#pfExamDate"),p.examDate);setVal($("#pfTarget"),p.targetGrade);
+  setVal($("#pfRevHours"),p.revHours);setVal($("#pfDailyHr"),p.dailyHr);
+  setChk($("#tgEnabled"),s.telegram.enabled);setVal($("#tgToken"),s.telegram.token);setVal($("#tgChat"),s.telegram.chatId);
+  setChk($("#tgAll"),s.telegram.all);
+  setChk($("#ttsOn"),s.ttsOn);setVal($("#ttsRate"),s.rate);setVal($("#ttsPitch"),s.pitch);
   $("#ttsRateVal").textContent=(+s.rate).toFixed(1)+"×";
-  $("#hydEnable").checked=s.hydration.enabled;$("#hydEvery").value=s.hydration.every;
-  $("#kaEnable").checked=!!s.keepAlive;updateKAStatus();
-  $("#poStudy").value=s.pomodoro.study;$("#poBreak").value=s.pomodoro.break;
-  $("#poLong").value=s.pomodoro.longBreak;$("#poCycles").value=s.pomodoro.cycles;
+  setChk($("#hydEnable"),s.hydration.enabled);setVal($("#hydEvery"),s.hydration.every);
+  setChk($("#kaEnable"),s.keepAlive);updateKAStatus();
+  setVal($("#poStudy"),s.pomodoro.study);setVal($("#poBreak"),s.pomodoro.break);
+  setVal($("#poLong"),s.pomodoro.longBreak);setVal($("#poCycles"),s.pomodoro.cycles);
   updateStorageInfo();
 }
 $("#profileForm").addEventListener("submit",e=>{
@@ -1755,11 +1763,14 @@ const CLOUD={
 function ingestDoc(doc,{forceApply=false,silent=false}={}){
   if(!doc||!doc.payload){setCloudStatus("Invalid cloud data",true);return;}
   setLiveRemote(doc);
-  if(!forceApply&&(doc.updatedAt||0)<(state._mut||0)){
-    if(cloudDirty&&!CLOUD.busy)CLOUD.push(true);
-    setCloudStatus("Connected · this device has the newest data");
-    updateCloudUI(doc);
-    return;
+  const newerRemote=(doc.updatedAt||0)>=(state._mut||0);
+  if(!forceApply){
+    if(recentTouch()||!newerRemote){
+      if(cloudDirty&&!CLOUD.busy&&!recentTouch(4000))CLOUD.push(true);
+      setCloudStatus(newerRemote?"Connected · synced":"Connected · this device has the newest data");
+      updateCloudUI(doc);
+      return;
+    }
   }
   const p=doc.payload,d=defaults();
   state.profile={...d.profile,...p.profile};
@@ -1813,9 +1824,8 @@ function startCloudAuto(){
   clearInterval(CLOUD_TIMER);CLOUD_TIMER=null;
   if(!state.cloud.code||state.cloud.auto===false)return;
   CLOUD_TIMER=setInterval(()=>{
-    const ae=document.activeElement;
-    const typing=ae&&["INPUT","SELECT","TEXTAREA"].includes(ae.tagName)&&ae.type!=="range";
-    CLOUD.pull(!typing,true);
+    if(recentTouch())return;
+    CLOUD.pull(false,true);
   },30000);
 }
 
