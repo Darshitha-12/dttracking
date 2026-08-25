@@ -596,7 +596,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
         <div class="card">
           <div class="card-head"><h3><span class="ico">📱</span>Phone Alert Mode</h3>
             <span class="badge" style="--sc:#F59E0B">android · chrome</span></div>
-          <div class="toggle-line">Keep screen awake &amp; tab un-throttled so alarms always ring<span class="sw"><input type="checkbox" id="kaEnable"><span class="sl"></span></span></div>
+          <div class="toggle-line" style="flex-wrap:wrap">Keep screen awake &amp; tab un-throttled
+            <span style="display:flex;align-items:center;gap:7px">
+              <button type="button" class="btn sm ghost ka-btn" data-kaset="on">ON</button>
+              <button type="button" class="btn sm ghost ka-btn" data-kaset="off">OFF</button>
+              <span class="sw"><input type="checkbox" id="kaEnable"><span class="sl"></span></span>
+            </span>
+          </div>
           <div class="kv"><span>Engine status</span><b id="kaStatus">off</b></div>
           <div class="hint">Screen Wake-Lock + inaudible audio keep-alive — phone eka BioPulse freeze karanne naha, alarm ekang sound + vibrate + notification yanawa. App eka sampurnayen close nam Telegram push eka (above) thamai wada karanne.</div>
         </div>
@@ -779,12 +785,12 @@ const Speech={
   }
 };
 
-function toast(msg,type=""){
+function toast(msg,type){
   const el=document.createElement("div");
-  el.className="toast "+type;
-  el.innerHTML=`<span>${type==="err"?"⚠️":"✅"}</span><span>${esc(msg)}</span>`;
+  el.className="toast "+(type||"");
+  el.innerHTML=`<span>${type==="err"?"⚠️":"✅"}</span><span>${esc(msg).replace(/\n/g,"<br>")}</span>`;
   $("#toasts").appendChild(el);
-  setTimeout(()=>{el.classList.add("out");setTimeout(()=>el.remove(),320);},3800);
+  setTimeout(()=>{el.classList.add("out");setTimeout(()=>el.remove(),320);},5200);
 }
 
 async function sendTelegram(text){
@@ -831,7 +837,11 @@ const KeepAlive={lock:null,osc:null,
 async function refreshKeepAlive(){if(state.settings.keepAlive){await KeepAlive.acquire();await KeepAlive.ensureAudio();}updateKAStatus();}
 function updateKAStatus(){
   const el=$("#kaStatus");if(!el)return;
-  if(!state.settings.keepAlive){el.textContent="off";el.style.color="var(--ink-dim)";return;}
+  const box=$("#kaEnable");
+  if(!state.settings.keepAlive){
+    el.textContent="off"+(box&&box.checked?" · ⚠ REVERTING":"");
+    el.style.color="var(--ink-dim)";return;
+  }
   const parts=["armed"];
   if(KeepAlive.lock&&!KeepAlive.lock.released)parts.push("screen-awake ✓");
   if(KeepAlive.osc)parts.push("tab-alive ✓");
@@ -1586,7 +1596,7 @@ function loadSettingsUI(){
   setChk($("#ttsOn"),s.ttsOn);setVal($("#ttsRate"),s.rate);setVal($("#ttsPitch"),s.pitch);
   $("#ttsRateVal").textContent=(+s.rate).toFixed(1)+"×";
   setChk($("#hydEnable"),s.hydration.enabled);setVal($("#hydEvery"),s.hydration.every);
-  setChk($("#kaEnable"),s.keepAlive);updateKAStatus();
+  setChk($("#kaEnable"),s.keepAlive);refreshKaBtns();updateKAStatus();
   setVal($("#poStudy"),s.pomodoro.study);setVal($("#poBreak"),s.pomodoro.break);
   setVal($("#poLong"),s.pomodoro.longBreak);setVal($("#poCycles"),s.pomodoro.cycles);
   updateStorageInfo();
@@ -1616,24 +1626,44 @@ $("#notifyBtn").addEventListener("click",()=>{
 });
 $("#hydEnable").addEventListener("change",e=>{state.settings.hydration.enabled=e.target.checked;DB.save();});
 $("#hydEvery").addEventListener("change",e=>{state.settings.hydration.every=clamp(+e.target.value||45,15,120);e.target.value=state.settings.hydration.every;DB.save();});
-$("#kaEnable").addEventListener("change",function(e){
-  const on=e.target.checked;
+function refreshKaBtns(){
+  const on=state.settings.keepAlive;
+  $$(".ka-btn").forEach(b=>{
+    const active=b.dataset.kaset===(on?"on":"off");
+    b.className="btn sm ka-btn "+(active?"primary":"ghost");
+  });
+}
+function applyPhoneAlert(on){
+  toast("📱 Phone Alert Mode → "+(on?"ON":"OFF"));
+  let saved;
   try{
     state.settings.keepAlive=on;DB.save();
-  }catch(err){toast("Save failed: "+err.message,"err");}
+    saved=(localStorage.getItem(LS_KEY)||"").indexOf('"keepAlive":'+on)>=0?"stored ✓":"⚠ not in storage";
+  }catch(err){saved="✗ "+err.message;}
+  const box=$("#kaEnable");
+  if(box)box.checked=on;
+  refreshKaBtns();
   updateKAStatus();
   if(on){
     try{AudioEngine.ensure();}catch(err){}
-    refreshKeepAlive().then(()=>{
-      toast(KeepAlive.lock&&KeepAlive.lock.released===false
-        ?"Phone Alert Mode ON — screen-awake ✓ + tab-alive ✓ 🔒"
-        :"Phone Alert Mode ON — tab-alive ✓ (wake-lock unsupported here) 🔒");
-    }).catch(()=>toast("Phone Alert Mode ON (basic mode) 🔒"));
+    Promise.resolve().then(()=>KeepAlive.acquire()).then(()=>{
+      const wl=(KeepAlive.lock&&!KeepAlive.lock.released)?"screen-awake ✓":"wake-lock n/a";
+      return KeepAlive.ensureAudio().then(()=>wl);
+    }).then(wl=>{
+      updateKAStatus();
+      toast("🔒 Phone Alert Mode ON\nsave: "+saved+"\n"+wl+" · tab-alive ✓");
+    }).catch(err=>{
+      updateKAStatus();
+      toast("Phone Alert Mode ON (partial)\nwake-lock error: "+((err&&err.message)||err),"err");
+    });
   }else{
-    KeepAlive.stopAll();
-    toast("Phone Alert Mode off");
+    try{KeepAlive.stopAll();}catch(err){}
+    updateKAStatus();
+    toast("Phone Alert Mode off · save "+saved);
   }
-});
+}
+$("#kaEnable").addEventListener("change",function(e){applyPhoneAlert(e.target.checked);});
+$$(".ka-btn").forEach(b=>b.addEventListener("click",()=>applyPhoneAlert(b.dataset.kaset==="on")));
 $("#poApply").addEventListener("click",()=>{
   Object.assign(state.settings.pomodoro,{
     study:clamp(+$("#poStudy").value||50,10,120),break:clamp(+$("#poBreak").value||10,3,30),
