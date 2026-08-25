@@ -604,7 +604,49 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
             </span>
           </div>
           <div class="kv"><span>Engine status</span><b id="kaStatus">off</b></div>
-          <div class="hint">Screen Wake-Lock + inaudible audio keep-alive — phone eka BioPulse freeze karanne naha, alarm ekang sound + vibrate + notification yanawa. App eka sampurnayen close nam Telegram push eka (above) thamai wada karanne.</div>
+          <div class="hint">Screen Wake-Lock + inaudible audio keep-alive — app open වෙලා තියෙන කාලයේ alarms ring කරවනවා. App සම්පූර්ණයෙන් close කරලා notification ඕනේ නම් ඉහත ntfy.sh හෝ Telegram භාවිතා කරන්න.</div>
+        </div>
+
+        <div class="card span-full" style="border-color:rgba(16,185,129,.45)">
+          <div class="card-head">
+            <h3><span class="ico">📡</span>ntfy.sh — Work when app is fully closed</h3>
+            <span class="badge" style="--sc:#10B981">★ recommended for phone</span></div>
+          <div class="toggle-line">Enable push even when browser is closed<span class="sw"><input type="checkbox" id="ntfyEnable"><span class="sl"></span></span></div>
+          <div class="row">
+            <div class="field" style="flex:2;min-width:200px"><label>Your secret topic name</label>
+              <input type="text" id="ntfyTopic" placeholder="e.g., biopulse-darshitha-2026" maxlength="40"></div>
+            <div class="field" style="flex:0">
+              <label>&nbsp;</label>
+              <button type="button" class="btn teal sm" id="ntfyTest">🚀 Send test</button></div>
+          </div>
+          <div class="hint" style="margin-bottom:10px">
+            <b>Setup (30 seconds, zero signup):</b><br>
+            1. Pick any secret topic name above (this IS your password — keep it private)<br>
+            2. Install <b>ntfy</b> app: <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener" style="color:var(--teal)">Android</a> · <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener" style="color:var(--teal)">iPhone</a><br>
+            3. Open ntfy app → Add subscription → Enter the <b>same topic name</b><br>
+            4. Done — every alarm fires a <b>real phone notification</b> even if BioPulse is closed, phone is locked, or browser is dead 🔔
+          </div>
+          <div class="kv"><span>Status</span><b id="ntfyStatus">not configured</b></div>
+        </div>
+
+        <div class="card span-full">
+          <div class="card-head"><h3><span class="ico">🔊</span>Custom Alarm Sounds</h3>
+            <span class="badge" style="--sc:#A78BFA">mp3 / wav / ogg / record</span></div>
+          <div class="row">
+            <div class="field" style="flex:1.2"><label>Sound name</label>
+              <input type="text" id="csName" placeholder="e.g., Gentle Chime" maxlength="30"></div>
+            <div class="field" style="flex:1.8"><label>Upload audio file</label>
+              <input type="file" id="csUpload" accept="audio/*,.mp3,.wav,.ogg,.m4a,.webm,.flac" style="font-size:12px"></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <button type="button" class="btn teal sm" id="csRecStart">🎙️ Record from mic</button>
+            <button type="button" class="btn ghost sm" id="csRecStop" disabled>⏹ Stop</button>
+            <span id="csRecStatus" style="font-size:12px;color:var(--ink-faint)"></span>
+          </div>
+          <div class="hint">Upload or record a short clip (5–30s recommended, max 2 min). Stored in your browser's IndexedDB only — never uploaded anywhere.</div>
+          <div class="divider"></div>
+          <div class="card-sub" style="margin-bottom:10px">Your custom sounds <span class="badge" style="--sc:#10B981" id="csCount">0</span></div>
+          <div class="list" id="csList"></div>
         </div>
 
         <div class="card">
@@ -700,6 +742,7 @@ function defaults(){return{
   alarms:[],topics:[],marks:[],sessions:[],fired:{},
   settings:{sound:"chime",ttsOn:true,voiceName:"",rate:1,pitch:1,keepAlive:false,
     telegram:{enabled:false,token:"",chatId:"",all:false},
+    ntfy:{enabled:false,topic:""},
     pomodoro:{study:50,break:10,longBreak:30,cycles:4},
     hydration:{enabled:true,every:45}},
   live:{running:false,phase:"idle",endTs:0,pausedMs:0,cyclesDone:0,setDone:0,lastHyd:0},
@@ -764,6 +807,63 @@ const AudioEngine={
     (map[kind]||map.soft)();
   }
 };
+
+/* ============ Custom Sound Storage (IndexedDB) + ring helpers ============ */
+const SoundDB={
+  DB:"biopulse_audio",VER:1,
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open(this.DB,this.VER);
+    r.onupgradeneeded=e=>{if(!e.target.result.objectStoreNames.contains("sounds"))
+      e.target.result.createObjectStore("sounds",{keyPath:"id"});};
+    r.onsuccess=e=>res(e.target.result);r.onerror=()=>rej(r.error);});},
+  save(s){return this.open().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction("sounds","readwrite");tx.objectStore("sounds").put(s);
+    tx.oncomplete=res;tx.onerror=()=>rej(tx.error);}));},
+  get(id){return this.open().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction("sounds","readonly");const r=tx.objectStore("sounds").get(id);
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}));},
+  getAll(){return this.open().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction("sounds","readonly");const r=tx.objectStore("sounds").getAll();
+    r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);}));},
+  del(id){return this.open().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction("sounds","readwrite");tx.objectStore("sounds").delete(id);
+    tx.oncomplete=res;tx.onerror=()=>rej(tx.error);}));}
+};
+function getAudioDuration(blob){
+  return new Promise(res=>{const url=URL.createObjectURL(blob);
+    const a=new Audio(url);
+    a.onloadedmetadata=()=>{URL.revokeObjectURL(url);res(a.duration||0);};
+    a.onerror=()=>{URL.revokeObjectURL(url);res(0);};
+    setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}res(0);},6000);});
+}
+let ringAudio=null;
+async function playCustomRing(id){
+  try{const s=await SoundDB.get(id);
+    if(!s||!s.blob){AudioEngine.play("chime");return;}
+    const url=URL.createObjectURL(s.blob);ringAudio=new Audio(url);ringAudio._url=url;
+    ringAudio.loop=true;ringAudio.volume=.92;
+    await ringAudio.play().catch(()=>AudioEngine.play("chime"));}
+  catch(e){AudioEngine.play("chime");}
+}
+async function populateSoundSelector(){
+  let sounds;try{sounds=await SoundDB.getAll();}catch(e){return;}
+  const sel=$("#alSound");if(!sel)return;
+  sel.querySelectorAll("[data-cust]").forEach(o=>o.remove());
+  sounds.forEach(s=>{const o=document.createElement("option");
+    o.value="custom:"+s.id;o.textContent="🎵 "+s.name;
+    o.dataset.cust=s.id;sel.appendChild(o);});
+}
+async function refreshSoundList(){
+  const list=$("#csList");if(!list)return;
+  let sounds;try{sounds=await SoundDB.getAll();}catch(e){sounds=[];}
+  $("#csCount").textContent=sounds.length;
+  if(!sounds.length){list.innerHTML=`<div class="empty" style="padding:14px"><span class="big">🎵</span>No custom sounds — upload or record one above.</div>`;return;}
+  list.innerHTML=sounds.map(s=>`<div class="item-row" style="padding:10px 14px">
+    <span style="font-size:20px">🎵</span>
+    <div class="item-main"><div class="item-title">${esc(s.name)}</div>
+      <div class="item-sub"><span>${s.duration.toFixed(1)}s</span><span>custom</span></div></div>
+    <button class="btn ghost sm" data-csplay="${s.id}">▶ Play</button>
+    <button class="btn danger icon sm" data-csdel="${s.id}">🗑</button></div>`).join("");
+}
 
 const Speech={
   voices:[],
@@ -1074,13 +1174,21 @@ function processQueue(){
   acts.push(`<button class="btn primary" data-done="1">✔ Done</button>`);
   $("#ovActions").innerHTML=acts.join("");
   $("#overlay").classList.add("show");
-  AudioEngine.play(a.sound);
   try{navigator.vibrate&&navigator.vibrate([600,150,600,150,1000]);}catch(e){}
-  Ringing.loopTimer=setInterval(()=>{AudioEngine.play(a.sound);try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
+  const isCustom=a.sound&&a.sound.startsWith("custom:");
+  if(isCustom){
+    playCustomRing(a.sound.slice(7));
+    Ringing.loopTimer=setInterval(()=>{try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
+  }else{
+    AudioEngine.play(a.sound);
+    Ringing.loopTimer=setInterval(()=>{AudioEngine.play(a.sound);try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
+  }
   if(a.tts)Speech.speak(a.label,{force:true});
   if(high||state.settings.telegram.all)
     sendTelegram(`<b>${high?"🚨 HIGH PRIORITY ALARM":"🔔 BioPulse Alert"}</b>\n${esc(a.label)}\n🕒 ${new Date().toLocaleTimeString()}`)
       .then(ok=>{if(!ok&&state.settings.telegram.enabled)toast("Telegram push failed — check token/chat ID","err");});
+  if(state.settings.ntfy.enabled&&state.settings.ntfy.topic)
+    fetch("https://ntfy.sh/"+encodeURIComponent(state.settings.ntfy.topic),{method:"POST",body:`🔔 BioPulse\n\n${a.label}\n🕐 ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}\nPriority: ${high?"high":"normal"}`,headers:{"Title":high?"🚨 HIGH PRIORITY ALARM":"🔔 BioPulse Alert","Priority":high?"high":"default","Tags":"alarm,bio,pulse"}}).catch(()=>{});
   notifyDesktop("BioPulse Alarm",a.label);
 }
 
@@ -1110,6 +1218,7 @@ $("#ovActions").addEventListener("click",e=>{
 
 function stopRinging(){
   clearInterval(Ringing.loopTimer);Ringing.loopTimer=null;
+  if(ringAudio){try{ringAudio.pause();ringAudio.currentTime=0;if(ringAudio._url)URL.revokeObjectURL(ringAudio._url);}catch(e){}ringAudio=null;}
   try{navigator.vibrate&&navigator.vibrate(0);}catch(e){}
   try{speechSynthesis.cancel();}catch(e){}
   $("#overlay").classList.remove("show");
@@ -1593,6 +1702,7 @@ function loadSettingsUI(){
   setVal($("#pfRevHours"),p.revHours);setVal($("#pfDailyHr"),p.dailyHr);
   setChk($("#tgEnabled"),s.telegram.enabled);setVal($("#tgToken"),s.telegram.token);setVal($("#tgChat"),s.telegram.chatId);
   setChk($("#tgAll"),s.telegram.all);
+  setChk($("#ntfyEnable"),s.ntfy&&s.ntfy.enabled);setVal($("#ntfyTopic"),s.ntfy?s.ntfy.topic:"");updateNtfyStatus();
   setChk($("#ttsOn"),s.ttsOn);setVal($("#ttsRate"),s.rate);setVal($("#ttsPitch"),s.pitch);
   $("#ttsRateVal").textContent=(+s.rate).toFixed(1)+"×";
   setChk($("#hydEnable"),s.hydration.enabled);setVal($("#hydEvery"),s.hydration.every);
@@ -1615,6 +1725,68 @@ $("#tgTest").addEventListener("click",async()=>{
   const ok=await sendTelegram(`Test alert from BioPulse — integration working ✅`);
   toast(ok?"Telegram test delivered 📨":"Telegram failed — verify token & chat ID",ok?"":"err");
 });
+$("#ntfyEnable").addEventListener("change",e=>{state.settings.ntfy.enabled=e.target.checked;DB.save();updateNtfyStatus();toast(e.target.checked?"ntfy.sh push enabled — alarms fire as real phone notifications 🔔":"ntfy.sh push disabled");});
+$("#ntfyTopic").addEventListener("change",e=>{state.settings.ntfy.topic=e.target.value.trim();DB.save();updateNtfyStatus();});
+function updateNtfyStatus(){const el=$("#ntfyStatus");if(!el)return;if(!state.settings.ntfy.enabled||!state.settings.ntfy.topic){el.textContent="not configured";el.style.color="var(--ink-dim)";return;}el.textContent="armed · topic: "+state.settings.ntfy.topic+" · ready 🔔";el.style.color="#34d399";}
+$("#ntfyTest").addEventListener("click",async()=>{
+  if(!state.settings.ntfy.topic){toast("Enter a topic name first","err");return;}
+  try{
+    await fetch("https://ntfy.sh/"+encodeURIComponent(state.settings.ntfy.topic),{method:"POST",body:"🧪 BioPulse ntfy test — if you see this, your phone notifications are WORKING!",headers:{"Title":"🧪 BioPulse Test","Priority":"high","Tags":"test,biology"}});
+    toast("Test sent to ntfy.sh — check your phone! 📱");
+  }catch(err){toast("ntfy.sh failed: "+(err.message||"network error"),"err");}
+});
+
+/* --- Custom Sounds: upload / record / preview / delete --- */
+let mediaRec=null,recTimer=null;
+$("#csUpload").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  if(!file.type.startsWith("audio/")&&!/\.(mp3|wav|ogg|m4a|webm|flac)$/i.test(file.name)){
+    toast("Select an audio file (mp3/wav/ogg)","err");e.target.value="";return;}
+  toast("Processing…");
+  const name=($("#csName").value.trim()||file.name.replace(/\.[^.]+$/,"")).slice(0,30);
+  const blob=file;const dur=await getAudioDuration(blob);
+  if(dur<.3){toast("File too short or unreadable","err");e.target.value="";return;}
+  if(dur>120){toast("Max 2 minutes","err");e.target.value="";return;}
+  await SoundDB.save({id:uid(),name,duration:dur,blob});
+  await refreshSoundList();await populateSoundSelector();
+  toast("Sound added: "+name+" ("+dur.toFixed(1)+"s) 🔊");
+  e.target.value="";$("#csName").value="";
+});
+$("#csRecStart").addEventListener("click",async()=>{
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm";
+    const chunks=[];mediaRec=new MediaRecorder(stream,{mimeType:mime});
+    mediaRec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+    mediaRec.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(chunks,{type:mime});const dur=await getAudioDuration(blob);
+      if(dur<.5){toast("Recording too short","err");return;}
+      const name=($("#csName").value.trim()||"Rec "+new Date().toLocaleTimeString()).slice(0,30);
+      await SoundDB.save({id:uid(),name,duration:dur,blob});
+      await refreshSoundList();await populateSoundSelector();
+      toast("Saved: "+name+" ("+dur.toFixed(1)+"s)");};
+    mediaRec.start();
+    $("#csRecStart").disabled=true;$("#csRecStop").disabled=false;
+    $("#csRecStatus").textContent="🔴 recording — click Stop when ready (auto-stops at 30s)";
+    recTimer=setTimeout(()=>{if(mediaRec&&mediaRec.state==="recording")mediaRec.stop();},30000);
+  }catch(e){toast("Mic not available: "+(e.message||e),"err");}
+});
+$("#csRecStop").addEventListener("click",()=>{
+  if(mediaRec&&mediaRec.state==="recording"){clearTimeout(recTimer);mediaRec.stop();}
+  $("#csRecStart").disabled=false;$("#csRecStop").disabled=true;$("#csRecStatus").textContent="";
+});
+$("#csList").addEventListener("click",async e=>{
+  const playBtn=e.target.closest("[data-csplay]");
+  const delBtn=e.target.closest("[data-csdel]");
+  if(playBtn){const s=await SoundDB.get(playBtn.dataset.csplay);
+    if(s&&s.blob){const a=new Audio(URL.createObjectURL(s.blob));a.play();
+      setTimeout(()=>{try{URL.revokeObjectURL(a.src)}catch(x){}},15000);}}
+  if(delBtn){if(!confirm("Delete this sound?"))return;
+    await SoundDB.del(delBtn.dataset.csdel);
+    await refreshSoundList();await populateSoundSelector();toast("Sound deleted");}
+});
+
 $("#ttsOn").addEventListener("change",e=>{state.settings.ttsOn=e.target.checked;DB.save();});
 $("#ttsVoice").addEventListener("change",e=>{state.settings.voiceName=e.target.value==="System default"?"":e.target.value;DB.save();});
 $("#ttsRate").addEventListener("input",e=>{state.settings.rate=+e.target.value;$("#ttsRateVal").textContent=(+e.target.value).toFixed(1)+"×";DB.save();});
@@ -1930,6 +2102,7 @@ function renderAll(){
   if(location.hash&&VIEW_TITLES[location.hash.slice(1)])showView(location.hash.slice(1));
   else{const first=$(".nav-item");first&&showView(first.dataset.view);}
   renderAll();
+  populateSoundSelector();refreshSoundList();
   if(state.cloud.code){updateCloudUI();setCloudStatus("Connected · checking cloud…");startCloudAuto();CLOUD.pull(false,true);}
   else setCloudStatus("Not connected");
   tickClock();setInterval(tickClock,1000);
