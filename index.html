@@ -934,7 +934,17 @@ function notifyDesktop(title,body){
 let focusNotif=null;
 function notifyFocusUpdate(){
   try{
-    if(!("Notification"in window)||Notification.permission!=="granted")return;
+    if(!("Notification"in window)){
+      if(state.live.running)toast("Notifications not supported on this browser","err");
+      return;
+    }
+    if(Notification.permission!=="granted"){
+      if(state.live.running&&Notification.permission==="default"){
+        toast("Tap 'Allow' for focus timer notifications 🔔","err");
+        Notification.requestPermission().then(p=>{if(p==="granted")notifyFocusUpdate();}).catch(()=>{});
+      }
+      return;
+    }
     const L=state.live;
     if(!L.running||L.phase==="idle"){closeFocusNotif();return;}
     const rem=Math.max(0,L.endTs-Date.now());
@@ -943,11 +953,13 @@ function notifyFocusUpdate(){
     const phaseEmoji=L.phase==="study"?"\u{1F534}":"\u2615";
     const phaseName=L.phase==="study"?"Deep Focus":"Break";
     const subName=subj($("#pomSubject")?($("#pomSubject").value||"bio"):"bio").name;
-    focusNotif=new Notification(phaseEmoji+" "+phaseName,{
+    const n=new Notification(phaseEmoji+" "+phaseName,{
       body:timeStr+" remaining \u00B7 "+subName,
-      tag:"biopulse-focus",icon:"icon-192.png",silent:true,renotify:true
+      tag:"biopulse-focus",silent:true,renotify:true
     });
-  }catch(e){}
+    focusNotif=n;
+    n.onerror=()=>{console.warn("Notification error");};
+  }catch(e){console.warn("notifyFocusUpdate:",e);}
 }
 function closeFocusNotif(){
   try{if(focusNotif){focusNotif.close();focusNotif=null;}}catch(e){}
@@ -2182,6 +2194,7 @@ function renderAll(){
   else{const first=$(".nav-item");first&&showView(first.dataset.view);}
   renderAll();
   populateSoundSelector();refreshSoundList();updateNotifBanner();
+  setInterval(updateNotifBanner,5000);
   if(state.cloud.code){updateCloudUI();setCloudStatus("Connected · checking cloud…");startCloudAuto();CLOUD.pull(false,true);}
   else setCloudStatus("Not connected");
   tickClock();setInterval(tickClock,1000);
@@ -2190,10 +2203,11 @@ function renderAll(){
   setInterval(renderDashboardStats,30000);
   if("speechSynthesis"in window){Speech.refresh();speechSynthesis.onvoiceschanged=()=>Speech.refresh();}
   window.addEventListener("beforeunload",()=>{saveLive();closeFocusNotif();});
+  setTimeout(()=>{if("Notification"in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{});},3000);
   document.addEventListener("pointerdown",async function once(){
     AudioEngine.ensure();document.removeEventListener("pointerdown",once);
+    if("Notification"in window&&Notification.permission==="default")ensureNotifyPerm();
     if(state.settings.keepAlive)await refreshKeepAlive();
-    else if("Notification"in window&&Notification.permission==="default")ensureNotifyPerm();
   },{once:true});
 })();
 
