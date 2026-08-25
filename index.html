@@ -465,7 +465,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
               <div class="ring-center"><div id="pomTime">50:00</div><div id="pomPhase">Ready</div></div>
             </div>
             <div class="cycle-dots" id="cycleDots"></div>
-            <div id="notifBanner" style="display:none;padding:10px 16px;border-radius:12px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);margin-bottom:12px;font-size:12.5px;color:#fbbf24;text-align:center;cursor:pointer" onclick="ensureNotifyPerm()">🔔 Tap here to enable notifications — focus timer alerts + alarm alerts will notify you even when the app is in background</div>
+            <div id="notifBanner" style="display:none;padding:14px 18px;border-radius:14px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);margin-bottom:14px;text-align:center">
+              <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:8px">🔔 Enable Notifications</div>
+              <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:10px">Focus timer + alarm alerts — even when app is in background</div>
+              <button class="btn primary sm" id="notifAllowBtn" style="font-size:13px;padding:10px 24px">Allow Notifications</button>
+            </div>
             <div class="timer-btns">
               <button class="btn primary" id="pomStart">▶ Start</button>
               <button class="btn ghost" id="pomReset">⟲ Reset</button>
@@ -1159,14 +1163,16 @@ $("#remOffsets").addEventListener("click",e=>{
 
 function ensureNotifyPerm(){
   try{
-    if("Notification"in window&&Notification.permission==="default")
+    if(!("Notification"in window)){toast("Notifications not supported on this browser","err");return;}
+    if(Notification.permission==="default"){
       Notification.requestPermission().then(p=>{
         updateNotifBanner();
-        if(p==="granted")toast("Notifications enabled — focus timer & alarms will notify you 🔔");
-        else toast("Notifications blocked — enable in browser settings for focus alerts","err");
+        if(p==="granted")toast("Notifications enabled 🔔");
+        else toast("Permission denied — enable in browser settings","err");
       }).catch(()=>{});
-    else if("Notification"in window&&Notification.permission==="denied")
-      toast("Notifications blocked — enable in browser/site settings for focus alerts","err");
+    }else if(Notification.permission==="denied"){
+      toast("Notifications blocked — enable in browser/site settings","err");
+    }
     updateNotifBanner();
   }catch(e){}
 }
@@ -1396,7 +1402,6 @@ function saveLive(){try{localStorage.setItem(LS_KEY+"_live",JSON.stringify(state
 function pomStartPause(){
   const L=state.live;
   AudioEngine.ensure();
-  ensureNotifyPerm();
   if(L.running){
     L.pausedMs=Math.max(0,L.endTs-Date.now());L.running=false;
     closeFocusNotif();
@@ -2203,12 +2208,18 @@ function renderAll(){
   setInterval(renderDashboardStats,30000);
   if("speechSynthesis"in window){Speech.refresh();speechSynthesis.onvoiceschanged=()=>Speech.refresh();}
   window.addEventListener("beforeunload",()=>{saveLive();closeFocusNotif();});
-  setTimeout(()=>{if("Notification"in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{});},3000);
   document.addEventListener("pointerdown",async function once(){
     AudioEngine.ensure();document.removeEventListener("pointerdown",once);
-    if("Notification"in window&&Notification.permission==="default")ensureNotifyPerm();
     if(state.settings.keepAlive)await refreshKeepAlive();
   },{once:true});
+  $("#notifAllowBtn").addEventListener("click",()=>{
+    if(!("Notification"in window)){toast("Notifications not supported","err");return;}
+    Notification.requestPermission().then(p=>{
+      updateNotifBanner();
+      if(p==="granted")toast("Notifications enabled 🔔");
+      else{toast("Permission denied — enable in browser settings","err");}
+    }).catch(()=>toast("Permission request failed","err"));
+  });
 })();
 
 /* PWA Service Worker Registration */
