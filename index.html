@@ -677,7 +677,20 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
           <div class="field"><label>Pitch</label><input type="range" id="ttsPitch" min="0.5" max="1.6" step="0.1" value="1"></div>
           <div class="row">
             <button class="btn ghost sm" id="ttsTest">🔊 Test voice</button>
-            <button class="btn ghost sm" id="notifyBtn">🔔 Enable desktop alerts</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3><span class="ico">🔔</span>Notifications</h3>
+            <span class="badge" id="notifStatusBadge" style="--sc:#F59E0B">checking…</span></div>
+          <div id="notifStatusLine" style="padding:10px 16px;border-radius:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);margin-bottom:14px;font-size:13px;color:#fbbf24;text-align:center">
+            Checking notification permission…
+          </div>
+          <button class="btn primary" id="notifAllowBtn2" style="width:100%;padding:14px;font-size:15px;margin-bottom:10px">🔔 Enable Notifications</button>
+          <button class="btn teal sm" id="notifTestBtn" style="width:100%;padding:12px">🧪 Send test notification NOW</button>
+          <div class="hint" style="margin-top:10px">
+            <b>Why notifications?</b> Focus timer updates + alarm alerts + reminders — even when app is in background.<br>
+            <b>Not working?</b> Make sure: (1) HTTPS ✓ (2) Browser allows notifications (3) Phone Settings → Apps → Browser → Notifications = ON
           </div>
         </div>
 
@@ -1884,10 +1897,53 @@ $("#ttsVoice").addEventListener("change",e=>{state.settings.voiceName=e.target.v
 $("#ttsRate").addEventListener("input",e=>{state.settings.rate=+e.target.value;$("#ttsRateVal").textContent=(+e.target.value).toFixed(1)+"×";DB.save();});
 $("#ttsPitch").addEventListener("change",e=>{state.settings.pitch=+e.target.value;DB.save();});
 $("#ttsTest").addEventListener("click",()=>Speech.speak(`Time for ${subj("bio").name} essay paper revision`,{force:true}));
-$("#notifyBtn").addEventListener("click",()=>{
-  if(!("Notification"in window))return toast("Desktop notifications unsupported","err");
-  Notification.requestPermission().then(p=>toast(p==="granted"?"Desktop alerts enabled":"Permission "+p,p==="granted"?"":"err"));
+$("#notifAllowBtn2").addEventListener("click",()=>{
+  if(!("Notification"in window)){toast("Notifications not supported on this browser","err");return;}
+  Notification.requestPermission().then(p=>{
+    updateNotifStatus();
+    if(p==="granted")toast("Notifications enabled! Test button below to verify 🔔");
+    else toast("Permission denied — enable in phone Settings → Apps → Browser → Notifications","err");
+  }).catch(()=>toast("Permission request failed","err"));
 });
+$("#notifTestBtn").addEventListener("click",()=>{
+  if(!("Notification"in window)){toast("Notifications not supported — try Chrome browser","err");return;}
+  if(Notification.permission!=="granted"){
+    toast("Permission not granted yet — click Enable Notifications first","err");
+    Notification.requestPermission().then(p=>updateNotifStatus()).catch(()=>{});
+    return;
+  }
+  try{
+    new Notification("🧪 BioPulse Test",{body:"If you see this, notifications are WORKING! 🔔",tag:"bp-test",icon:"icon-192.png"});
+    toast("Test notification sent — check your phone! 📱");
+  }catch(e){toast("Notification failed: "+e.message,"err");}
+});
+function updateNotifStatus(){
+  try{
+    const badge=$("#notifStatusBadge");
+    const line=$("#notifStatusLine");
+    const btn=$("#notifAllowBtn2");
+    if(!badge||!line||!btn)return;
+    if(!("Notification"in window)){
+      badge.textContent="unsupported";badge.style.setProperty("--sc","#F43F5E");
+      line.textContent="❌ Notifications NOT supported on this browser — try Chrome";line.style.background="rgba(244,63,94,.1)";line.style.borderColor="rgba(244,63,94,.3)";line.style.color="#fb7185";
+      btn.style.display="none";return;
+    }
+    const p=Notification.permission;
+    if(p==="granted"){
+      badge.textContent="enabled ✓";badge.style.setProperty("--sc","#10B981");
+      line.textContent="✅ Notifications ENABLED — focus timer + alarms will notify you";line.style.background="rgba(16,185,129,.1)";line.style.borderColor="rgba(16,185,129,.3)";line.style.color="#34d399";
+      btn.textContent="✅ Notifications Enabled";btn.disabled=true;btn.style.opacity=".6";
+    }else if(p==="denied"){
+      badge.textContent="blocked ✗";badge.style.setProperty("--sc","#F43F5E");
+      line.textContent="❌ Notifications BLOCKED — go to phone Settings → Apps → Browser → Notifications → Allow";line.style.background="rgba(244,63,94,.1)";line.style.borderColor="rgba(244,63,94,.3)";line.style.color="#fb7185";
+      btn.textContent="⚠️ Blocked by Browser";btn.disabled=true;btn.style.opacity=".6";
+    }else{
+      badge.textContent="not enabled";badge.style.setProperty("--sc","#F59E0B");
+      line.textContent="⏳ Notifications not yet enabled — click below to allow";line.style.background="rgba(245,158,11,.1)";line.style.borderColor="rgba(245,158,11,.3)";line.style.color="#fbbf24";
+      btn.textContent="🔔 Enable Notifications";btn.disabled=false;btn.style.opacity="1";
+    }
+  }catch(e){}
+}
 $("#hydEnable").addEventListener("change",e=>{state.settings.hydration.enabled=e.target.checked;DB.save();});
 $("#hydEvery").addEventListener("change",e=>{state.settings.hydration.every=clamp(+e.target.value||45,15,120);e.target.value=state.settings.hydration.every;DB.save();});
 function refreshKaBtns(){
@@ -2198,8 +2254,8 @@ function renderAll(){
   if(location.hash&&VIEW_TITLES[location.hash.slice(1)])showView(location.hash.slice(1));
   else{const first=$(".nav-item");first&&showView(first.dataset.view);}
   renderAll();
-  populateSoundSelector();refreshSoundList();updateNotifBanner();
-  setInterval(updateNotifBanner,5000);
+  populateSoundSelector();refreshSoundList();updateNotifBanner();updateNotifStatus();
+  setInterval(()=>{updateNotifBanner();updateNotifStatus();},5000);
   if(state.cloud.code){updateCloudUI();setCloudStatus("Connected · checking cloud…");startCloudAuto();CLOUD.pull(false,true);}
   else setCloudStatus("Not connected");
   tickClock();setInterval(tickClock,1000);
@@ -2215,7 +2271,7 @@ function renderAll(){
   $("#notifAllowBtn").addEventListener("click",()=>{
     if(!("Notification"in window)){toast("Notifications not supported","err");return;}
     Notification.requestPermission().then(p=>{
-      updateNotifBanner();
+      updateNotifBanner();updateNotifStatus();
       if(p==="granted")toast("Notifications enabled 🔔");
       else{toast("Permission denied — enable in browser settings","err");}
     }).catch(()=>toast("Permission request failed","err"));
