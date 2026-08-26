@@ -1137,7 +1137,7 @@ function showView(name){
 }
 
 /* ============ Alarm engine ============ */
-const Ringing={queue:[],current:null,loopTimer:null};
+const Ringing={queue:[],current:null,loopTimer:null,vibTimer:null,_alarmActive:false,_wakeLock:null,_onVisChange:null};
 
 function nextOccurrenceFor(alarm){
   const now=new Date();
@@ -1330,38 +1330,62 @@ function triggerAlarm(alarm){
 }
 
 function processQueue(){
-  const a=Ringing.queue.shift();
+  var a=Ringing.queue.shift();
   if(!a){Ringing.current=null;return;}
   Ringing.current=a;
-  const s=a.subjectId?subj(a.subjectId):null;
-  const high=a.priority==="high";
-  $("#ovIcon").textContent=high?"🚨":a.kind==="hydration"?"💧":a.kind==="reminder"?"🔔":"⏰";
+  var s=a.subjectId?subj(a.subjectId):null;
+  var high=a.priority==="high";
+  $("#ovIcon").textContent=high?"\uD83D\uDEA8":a.kind==="hydration"?"\uD83D\uDCA7":a.kind==="reminder"?"\uD83D\uDD14":"\u23F0";
   $("#ovKicker").textContent=a.kind==="hydration"?"Wellness Interval":a.kind==="reminder"?(high?"Priority Reminder":"Quick Reminder"):(high?"High-Priority Alert":"Study Alarm");
   $("#ovKicker").classList.toggle("hot",!!high);
   $("#ovTitle").textContent=a.label;
-  const now=new Date();
+  var now=new Date();
   $("#ovClock").textContent=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  $("#ovMeta").innerHTML=`<span>🕒 ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>${s?badge(s):""}${a.snoozeCount?`<span>😴 snoozed ×${a.snoozeCount}</span>`:""}`;
-  const acts=[];
+  $("#ovMeta").innerHTML='<span>\uD83D\uDD25 '+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+'</span>'+(s?badge(s):"")+(a.snoozeCount?'<span>\uD83D\uDE34 snoozed \u00D7'+a.snoozeCount+'</span>':"");
+  var acts=[];
   if(a.kind!=="hydration")
-    acts.push(...SNOOZES.map(mn=>`<button class="btn ghost" data-snooze="${mn}">😴 Snooze ${mn}m</button>`));
-  acts.push(`<button class="btn primary" data-done="1">✔ Done</button>`);
+    acts.push.apply(acts,SNOOZES.map(function(mn){return '<button class="btn ghost" data-snooze="'+mn+'">\uD83D\uDE34 Snooze '+mn+'m</button>';}));
+  acts.push('<button class="btn primary" data-done="1">\u2714 Done</button>');
   $("#ovActions").innerHTML=acts.join("");
-  const ov=$("#overlay");
+  var ov=$("#overlay");
   ov.classList.toggle("hot",!!high);
   ov.classList.add("show");
   try{showView("alarms");}catch(e){}
-  document.title="\uD83D\uDD14 ALARM — "+(a.label||"BioPulse");
+  document.title="\uD83D\uDD14 ALARM \u2014 "+(a.label||"BioPulse");
   if(high)flashScreen("rgba(244,63,94,.5)");else flashScreen("rgba(16,185,129,.35)");
   try{navigator.vibrate&&navigator.vibrate([600,150,600,150,1000]);}catch(e){}
-  const isCustom=a.sound&&a.sound.startsWith("custom:");
+  var isCustom=a.sound&&a.sound.startsWith("custom:");
   if(isCustom){
     playCustomRing(a.sound.slice(7));
-    Ringing.loopTimer=setInterval(()=>{try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
+    Ringing.vibTimer=setInterval(function(){try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
   }else{
     AudioEngine.play(a.sound);
-    Ringing.loopTimer=setInterval(()=>{AudioEngine.play(a.sound);try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
+    Ringing.vibTimer=setInterval(function(){AudioEngine.play(a.sound);try{navigator.vibrate&&navigator.vibrate([400,100,400]);}catch(e){}},3400);
   }
+  if(a.tts)Speech.speak(a.label,{force:true});
+  if(high||state.settings.telegram.all)
+    sendTelegram('<b>'+(high?"\uD83D\uDEA8 HIGH PRIORITY ALARM":"\uD83D\uDD14 BioPulse Alert")+'</b>\n'+esc(a.label)+'\n\uD83D\uDD25 '+new Date().toLocaleTimeString())
+      .then(function(ok){if(!ok&&state.settings.telegram.enabled)toast("Telegram push failed","err");});
+  if(state.settings.ntfy.enabled&&state.settings.ntfy.topic)
+    fetch("https://ntfy.sh/"+encodeURIComponent(state.settings.ntfy.topic),{method:"POST",body:"\uD83D\uDD14 BioPulse\n\n"+a.label+"\n\uD83C\uDFE5 "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+"\nPriority: "+(high?"high":"normal"),headers:{Title:high?"\uD83D\uDEA8 HIGH PRIORITY ALARM":"\uD83D\uDD14 BioPulse Alert",Priority:high?"high":"default",Tags:"alarm,bio,pulse"}}).catch(function(){});
+  notifyDesktop("BioPulse Alarm",a.label);
+  try{
+    if("serviceWorker"in navigator&&navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({type:"alarm-ring",data:{id:a.id,label:a.label,priority:a.priority}});
+    }
+  }catch(e){}
+  if("setAppBadge"in navigator){try{navigator.setAppBadge(1);}catch(e){}
+  try{if("mediaSession"in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:"ALARM \u2014 "+(a.label||"BioPulse"),artist:"BioPulse",album:"Study Alarm"});navigator.mediaSession.setActionHandler("play",function(){});navigator.mediaSession.setActionHandler("pause",function(){stopRinging();});}}catch(e){}
+  Ringing._alarmActive=true;
+  try{if("wakeLock"in navigator)navigator.wakeLock.request("screen").then(function(lk){Ringing._wakeLock=lk;}).catch(function(){});}catch(e){}
+  try{var doc=document.documentElement;if(doc.requestFullscreen)doc.requestFullscreen().catch(function(){});else if(doc.webkitRequestFullscreen)doc.webkitRequestFullscreen();}catch(e){}
+  window.addEventListener("visibilitychange",Ringing._onVisChange=function(){
+    if(!Ringing._alarmActive)return;
+    if(document.visibilityState==="visible"){
+      try{var d2=document.documentElement;if(d2.requestFullscreen)d2.requestFullscreen().catch(function(){});else if(d2.webkitRequestFullscreen)d2.webkitRequestFullscreen();}catch(e){}
+    }
+  });
+}
   if(a.tts)Speech.speak(a.label,{force:true});
   if(high||state.settings.telegram.all)
     sendTelegram(`<b>${high?"🚨 HIGH PRIORITY ALARM":"🔔 BioPulse Alert"}</b>\n${esc(a.label)}\n🕒 ${new Date().toLocaleTimeString()}`)
@@ -1398,13 +1422,18 @@ $("#ovActions").addEventListener("click",e=>{
 });
 
 function stopRinging(){
+  clearInterval(Ringing.vibTimer);Ringing.vibTimer=null;
   clearInterval(Ringing.loopTimer);Ringing.loopTimer=null;
   if(ringAudio){try{ringAudio.pause();ringAudio.currentTime=0;if(ringAudio._url)URL.revokeObjectURL(ringAudio._url);}catch(e){}ringAudio=null;}
   try{navigator.vibrate&&navigator.vibrate(0);}catch(e){}
   try{speechSynthesis.cancel();}catch(e){}
   document.title="BioPulse \u00B7 Biology Stream Study OS";
   try{if("clearAppBadge"in navigator)navigator.clearAppBadge();}catch(e){}
-  try{if("mediaSession"in navigator)navigator.mediaSession.metadata=new MediaMetadata({title:"BioPulse",artist:"Study OS"});}catch(e){}
+  try{if("mediaSession"in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:"BioPulse",artist:"Study OS"});navigator.mediaSession.setActionHandler("play",null);navigator.mediaSession.setActionHandler("pause",null);}}catch(e){}
+  try{if(Ringing._wakeLock){Ringing._wakeLock.release&&Ringing._wakeLock.release();Ringing._wakeLock=null;}}catch(e){}
+  Ringing._alarmActive=false;
+  try{if(Ringing._onVisChange)window.removeEventListener("visibilitychange",Ringing._onVisChange);Ringing._onVisChange=null;}catch(e){}
+  try{if(document.fullscreenElement||document.webkitFullscreenElement){if(document.exitFullscreen)document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}}catch(e){}
   $("#overlay").classList.remove("show");
   Ringing.current=null;
 }
@@ -2417,12 +2446,34 @@ function renderAll(){
 
 /* PWA Service Worker Registration */
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("./sw.js").then(reg=>{
-    reg.addEventListener("updatefound",()=>{reg.installing.addEventListener("statechange",e=>{
+  navigator.serviceWorker.register("./sw.js").then(function(reg){
+    reg.addEventListener("updatefound",function(){reg.installing.addEventListener("statechange",function(e){
       if(e.target.state==="installed"&&navigator.serviceWorker.controller)e.target.skipWaiting();
     });});
-  }).catch(()=>{});
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{location.reload();});
+    navigator.serviceWorker.addEventListener("message",function(e){
+      if(e.data&&e.data.type==="alarm-fire"){
+        var d=e.data.data||{};
+        var match=state.alarms.find(function(a){return a.id===d.alarmId;});
+        if(match&&!match.fired){
+          match.fired=true;match.enabled=false;
+          DB.save();
+        }
+        triggerAlarm({id:d.id||uid(),label:d.label||"Alarm",priority:d.priority||"normal",kind:"alarm",sound:"chime",tts:true});
+        try{showView("dashboard");}catch(x){}
+      }
+    });
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener("controllerchange",function(){location.reload();});
+  if(location.hash==="#alarm-fired"){
+    history.replaceState(null,"","./");
+    setTimeout(function(){
+      var pending=state.alarms.find(function(a){return a.enabled!==false&&a.fireAt&&Date.now()>=a.fireAt&&!a.fired;});
+      if(pending){
+        pending.fired=true;pending.enabled=false;DB.save();
+        triggerAlarm(pending);
+      }
+    },500);
+  }
 }
 </script>
 </body>
