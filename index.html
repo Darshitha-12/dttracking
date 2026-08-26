@@ -371,6 +371,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
             Checking…
           </div>
           <button class="btn primary" id="dashNotifBtn" style="width:100%;padding:13px;font-size:14px">🔔 Enable Notifications</button>
+          <div id="dashNotifBlocked" style="display:none;padding:14px;border-radius:12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.25);margin-top:10px;font-size:12.5px;color:#fca5a5;line-height:1.7">
+            <div style="font-weight:800;font-size:14px;color:#fb7185;margin-bottom:8px">⚠️ Notifications blocked by browser</div>
+            Browser won't let the app re-request. Enable manually:<br>
+            <b style="color:#fff">Settings → Apps → Chrome → Notifications → ON</b><br>
+            <span style="color:#94a3b8">Then reload this page.</span>
+          </div>
           <div class="hint" style="margin-top:8px">Required for focus timer alerts + alarm popups in background.</div>
         </div>
 
@@ -723,9 +729,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
           </div>
           <button class="btn primary" id="notifAllowBtn2" style="width:100%;padding:14px;font-size:15px;margin-bottom:10px">🔔 Enable Notifications</button>
           <button class="btn teal sm" id="notifTestBtn" style="width:100%;padding:12px">🧪 Send test notification NOW</button>
+          <div id="notifBlockedHint" style="display:none;padding:14px;border-radius:12px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.25);margin-top:12px;font-size:12.5px;color:#fca5a5;line-height:1.7">
+            <div style="font-weight:800;font-size:14px;color:#fb7185;margin-bottom:8px">⚠️ Blocked by browser — can't re-request</div>
+            <b style="color:#fff">1.</b> Open phone <b style="color:#fff">Settings</b><br>
+            <b style="color:#fff">2.</b> Go to <b style="color:#fff">Apps → Chrome</b><br>
+            <b style="color:#fff">3.</b> Tap <b style="color:#fff">Notifications → ON</b><br>
+            <b style="color:#fff">4.</b> Come back & <b style="color:#fff">reload this page</b>
+          </div>
           <div class="hint" style="margin-top:10px">
-            <b>Why notifications?</b> Focus timer updates + alarm alerts + reminders — even when app is in background.<br>
-            <b>Not working?</b> Make sure: (1) HTTPS ✓ (2) Browser allows notifications (3) Phone Settings → Apps → Browser → Notifications = ON
+            <b>Why notifications?</b> Focus timer updates + alarm alerts + reminders — even when app is in background.
           </div>
         </div>
 
@@ -975,37 +987,80 @@ async function sendTelegram(text){
   }catch(e){console.warn("Telegram failed",e);return false;}
 }
 
-function notifyDesktop(title,body){
-  try{
-    if(!("Notification"in window)||Notification.permission!=="granted")return;
-    new Notification(title,{body,icon:"icon-192.png"});
-  }catch(e){}
+/* ============ Cross-platform notification (SW → Notification API → In-App Overlay fallback) ============ */
+function safeNotify(title,body,opts){
+  opts=opts||{};
+  var o={body:body||"",icon:"icon-192.png",badge:"icon-192.png",vibrate:opts.vibrate||[300,100,300],tag:opts.tag||("bp-"+Date.now()),renotify:true};
+  var swOk=false;
+  var swPromise=("serviceWorker"in navigator)&&navigator.serviceWorker.ready.then(function(reg){
+    return reg.showNotification(title,o).then(function(){swOk=true;}).catch(function(){swOk=false;});
+  }).catch(function(){swOk=false;});
+  var notifPromise=Promise.resolve(swPromise).then(function(){
+    if(swOk)return;
+    try{
+      if(!("Notification"in window))return;
+      if(typeof Notification!=="function")return;
+      if(Notification.permission!=="granted")return;
+      var n=new Notification(title,o);
+      n.onerror=function(){};
+    }catch(e){}
+  }).catch(function(){});
+  notifPromise.then(function(){
+    if(!swOk){
+      try{
+        if(!("Notification"in window))return;
+        if(typeof Notification!=="function")return;
+        if(Notification.permission!=="granted")return;
+        var n2=new Notification(title,o);
+        n2.onerror=function(){};
+      }catch(e2){}
+    }
+  });
+  if(opts.inApp!==false){
+    try{AudioEngine.ensure();AudioEngine.play("chime");}catch(x){}
+    try{flashScreen("rgba(16,185,129,.35)");}catch(x){}
+  }
 }
+function notifyDesktop(title,body){safeNotify(title,body,{inApp:false});}
 
 /* ============ Focus Timer persistent notification ============ */
-let focusNotif=null;
+var focusNotif=null;
+var _focusNotifTag="biopulse-focus";
 function notifyFocusUpdate(){
   try{
-    if(!("Notification"in window)||Notification.permission!=="granted")return;
-    const L=state.live;
+    if(!("Notification"in window))return;
+    if(Notification.permission!=="granted")return;
+    var L=state.live;
     if(!L.running||L.phase==="idle"){closeFocusNotif();return;}
-    try{if(focusNotif)focusNotif.close();}catch(x){}
-    const rem=Math.max(0,L.endTs-Date.now());
-    const m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);
-    const timeStr=m+":"+String(s).padStart(2,"0");
-    const phaseEmoji=L.phase==="study"?"\u{1F534}":"\u2615";
-    const phaseName=L.phase==="study"?"Deep Focus":"Break";
-    const subName=subj($("#pomSubject")?($("#pomSubject").value||"bio"):"bio").name;
-    const n=new Notification(phaseEmoji+" "+phaseName,{
-      body:timeStr+" remaining \u00B7 "+subName,
-      tag:"biopulse-focus",icon:"icon-192.png",renotify:true
-    });
-    focusNotif=n;
-    n.onerror=()=>{};
+    var rem=Math.max(0,L.endTs-Date.now());
+    var m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);
+    var timeStr=m+":"+String(s).padStart(2,"0");
+    var phaseEmoji=L.phase==="study"?"\uD83D\uDD34":"\u2615";
+    var phaseName=L.phase==="study"?"Deep Focus":"Break";
+    var subName=subj($("#pomSubject")?($("#pomSubject").value||"bio"):"bio").name;
+    var o={body:timeStr+" remaining \u00B7 "+subName,icon:"icon-192.png",badge:"icon-192.png",tag:_focusNotifTag,renotify:true,vibrate:[200,100,200]};
+    var didSW=false;
+    var swP=("serviceWorker"in navigator)&&navigator.serviceWorker.ready.then(function(reg){
+      return reg.showNotification(phaseEmoji+" "+phaseName,o).then(function(){didSW=true;}).catch(function(){didSW=false;});
+    }).catch(function(){didSW=false;});
+    Promise.resolve(swP).then(function(){
+      if(didSW)return;
+      try{
+        if(typeof Notification!=="function")return;
+        closeFocusNotif();
+        var n=new Notification(phaseEmoji+" "+phaseName,o);
+        focusNotif=n;n.onerror=function(){};
+      }catch(e){}
+    }).catch(function(){});
   }catch(e){}
 }
 function closeFocusNotif(){
-  try{if(focusNotif){focusNotif.close();focusNotif=null;}}catch(e){}
+  try{if(focusNotif){focusNotif.close&&focusNotif.close();focusNotif=null;}}catch(e){}
+  try{if("serviceWorker"in navigator&&navigator.serviceWorker.controller){
+    navigator.serviceWorker.ready.then(function(reg){
+      reg.getNotifications({tag:_focusNotifTag}).then(function(list){list.forEach(function(n){n.close();});});
+    });
+  }}catch(e){}
 }
 function flashScreen(color){
   const f=document.createElement("div");
@@ -1930,71 +1985,66 @@ $("#ttsVoice").addEventListener("change",e=>{state.settings.voiceName=e.target.v
 $("#ttsRate").addEventListener("input",e=>{state.settings.rate=+e.target.value;$("#ttsRateVal").textContent=(+e.target.value).toFixed(1)+"×";DB.save();});
 $("#ttsPitch").addEventListener("change",e=>{state.settings.pitch=+e.target.value;DB.save();});
 $("#ttsTest").addEventListener("click",()=>Speech.speak(`Time for ${subj("bio").name} essay paper revision`,{force:true}));
-$("#notifAllowBtn2").addEventListener("click",()=>{
-  if(!("Notification"in window)){toast("Notifications not supported on this browser","err");return;}
-  Notification.requestPermission().then(p=>{
-    updateNotifStatus();
-    if(p==="granted")toast("Notifications enabled! Test button below to verify 🔔");
-    else toast("Permission denied — enable in phone Settings → Apps → Browser → Notifications","err");
-  }).catch(()=>toast("Permission request failed","err"));
-});
-$("#notifTestBtn").addEventListener("click",()=>{
-  if(!("Notification"in window)){toast("Notifications not supported — try Chrome browser","err");return;}
+$("#notifAllowBtn2").addEventListener("click",requestNotifFromClick);
+$("#notifTestBtn").addEventListener("click",function(){
+  if(!("Notification"in window)){toast("Notifications not supported \u2014 try Chrome browser","err");return;}
   if(Notification.permission!=="granted"){
-    toast("Permission not granted yet — click Enable Notifications first","err");
-    Notification.requestPermission().then(p=>updateNotifStatus()).catch(()=>{});
+    toast("Permission not granted yet \u2014 click Enable Notifications first","err");
+    try{Notification.requestPermission().then(function(p){updateNotifStatus();}).catch(function(){});}catch(x){}
     return;
   }
   try{
-    new Notification("🧪 BioPulse Test",{body:"If you see this, notifications are WORKING! 🔔",tag:"bp-test",icon:"icon-192.png",renotify:true});
-    toast("Test notification sent — check your phone! 📱");
-  }catch(e){toast("Notification failed: "+e.message,"err");}
+    safeNotify("\uD83E\uDDEA BioPulse Test","If you see this, notifications are WORKING! \uD83D\uDD14",{tag:"bp-test-"+Date.now()});
+    toast("Test sent \u2014 check notification panel! \uD83D\uDCF1");
+  }catch(e){toast("Test failed: "+(e.message||e),"err");}
 });
 function updateNotifStatus(){
   try{
     const badge=$("#notifStatusBadge");
     const line=$("#notifStatusLine");
     const btn=$("#notifAllowBtn2");
+    const blkHint=$("#notifBlockedHint");
     if(!badge||!line||!btn)return;
     if(!("Notification"in window)){
       badge.textContent="unsupported";badge.style.setProperty("--sc","#F43F5E");
       line.textContent="\u274C Notifications NOT supported on this browser \u2014 try Chrome";line.style.background="rgba(244,63,94,.1)";line.style.borderColor="rgba(244,63,94,.3)";line.style.color="#fb7185";
-      btn.style.display="none";return;
+      btn.style.display="none";if(blkHint)blkHint.style.display="none";return;
     }
     const p=Notification.permission;
     if(p==="granted"){
       badge.textContent="enabled \u2713";badge.style.setProperty("--sc","#10B981");
       line.textContent="\u2705 Notifications ENABLED \u2014 focus timer + alarms will notify you";line.style.background="rgba(16,185,129,.1)";line.style.borderColor="rgba(16,185,129,.3)";line.style.color="#34d399";
-      btn.textContent="\u2705 Notifications Enabled";btn.disabled=true;btn.style.opacity=".6";
+      btn.textContent="\u2705 Notifications Enabled";btn.disabled=true;btn.style.opacity=".6";if(blkHint)blkHint.style.display="none";
     }else if(p==="denied"){
       badge.textContent="blocked \u2717";badge.style.setProperty("--sc","#F43F5E");
-      line.textContent="\u274C Notifications BLOCKED \u2014 go to phone Settings \u2192 Apps \u2192 Browser \u2192 Notifications \u2192 Allow";line.style.background="rgba(244,63,94,.1)";line.style.borderColor="rgba(244,63,94,.3)";line.style.color="#fb7185";
-      btn.textContent="\u26A0\uFE0F Blocked by Browser";btn.disabled=true;btn.style.opacity=".6";
+      line.textContent="\u274C Notifications BLOCKED \u2014 see steps below to enable in phone Settings";line.style.background="rgba(244,63,94,.1)";line.style.borderColor="rgba(244,63,94,.3)";line.style.color="#fb7185";
+      btn.textContent="\u26A0\uFE0F Blocked by Browser";btn.disabled=true;btn.style.opacity=".6";if(blkHint)blkHint.style.display="";
     }else{
       badge.textContent="not enabled";badge.style.setProperty("--sc","#F59E0B");
       line.textContent="\u23F3 Notifications not yet enabled \u2014 click below to allow";line.style.background="rgba(245,158,11,.1)";line.style.borderColor="rgba(245,158,11,.3)";line.style.color="#fbbf24";
-      btn.textContent="\uD83D\uDD14 Enable Notifications";btn.disabled=false;btn.style.opacity="1";
+      btn.textContent="\uD83D\uDD14 Enable Notifications";btn.disabled=false;btn.style.opacity="1";if(blkHint)blkHint.style.display="none";
     }
     updateDashNotif();
   }catch(e){}
 }
 function updateDashNotif(){
   try{
-    const b=$("#dashNotifBadge"),l=$("#dashNotifLine"),btn=$("#dashNotifBtn");
+    const b=$("#dashNotifBadge"),l=$("#dashNotifLine"),btn=$("#dashNotifBtn"),blk=$("#dashNotifBlocked");
     if(!b||!l||!btn)return;
-    if(!("Notification"in window)){b.textContent="unsupported";b.style.setProperty("--sc","#F43F5E");l.textContent="Not supported";l.style.background="rgba(244,63,94,.1)";l.style.borderColor="rgba(244,63,94,.3)";l.style.color="#fb7185";btn.style.display="none";return;}
+    if(!("Notification"in window)){b.textContent="unsupported";b.style.setProperty("--sc","#F43F5E");l.textContent="Not supported";l.style.background="rgba(244,63,94,.1)";l.style.borderColor="rgba(244,63,94,.3)";l.style.color="#fb7185";btn.style.display="none";if(blk)blk.style.display="none";return;}
     const p=Notification.permission;
-    if(p==="granted"){b.textContent="enabled \u2713";b.style.setProperty("--sc","#10B981");l.textContent="\u2705 Ready \u2014 alarms + focus timer will notify you";l.style.background="rgba(16,185,129,.1)";l.style.borderColor="rgba(16,185,129,.3)";l.style.color="#34d399";btn.textContent="\u2705 Enabled";btn.disabled=true;btn.style.opacity=".5";}
-    else if(p==="denied"){b.textContent="blocked";b.style.setProperty("--sc","#F43F5E");l.textContent="\u274C Blocked \u2014 enable in phone Settings";l.style.background="rgba(244,63,94,.1)";l.style.borderColor="rgba(244,63,94,.3)";l.style.color="#fb7185";btn.textContent="\u26A0\uFE0F Blocked";btn.disabled=true;btn.style.opacity=".5";}
-    else{b.textContent="tap to enable";b.style.setProperty("--sc","#F59E0B");l.textContent="\u23F3 Tap below to enable notifications";l.style.background="rgba(245,158,11,.1)";l.style.borderColor="rgba(245,158,11,.3)";l.style.color="#fbbf24";btn.textContent="\uD83D\uDD14 Enable Notifications";btn.disabled=false;btn.style.opacity="1";}
+    if(p==="granted"){b.textContent="enabled \u2713";b.style.setProperty("--sc","#10B981");l.textContent="\u2705 Ready \u2014 alarms + focus timer will notify you";l.style.background="rgba(16,185,129,.1)";l.style.borderColor="rgba(16,185,129,.3)";l.style.color="#34d399";btn.textContent="\u2705 Enabled";btn.disabled=true;btn.style.opacity=".5";if(blk)blk.style.display="none";}
+    else if(p==="denied"){b.textContent="blocked";b.style.setProperty("--sc","#F43F5E");l.textContent="\u274C Blocked \u2014 enable in phone Settings (see below)";l.style.background="rgba(244,63,94,.1)";l.style.borderColor="rgba(244,63,94,.3)";l.style.color="#fb7185";btn.textContent="\u26A0\uFE0F Blocked by Browser";btn.disabled=true;btn.style.opacity=".5";if(blk)blk.style.display="";}
+    else{b.textContent="tap to enable";b.style.setProperty("--sc","#F59E0B");l.textContent="\u23F3 Tap below to enable notifications";l.style.background="rgba(245,158,11,.1)";l.style.borderColor="rgba(245,158,11,.3)";l.style.color="#fbbf24";btn.textContent="\uD83D\uDD14 Enable Notifications";btn.disabled=false;btn.style.opacity="1";if(blk)blk.style.display="none";}
   }catch(e){}
 }
 function requestNotifFromClick(){
   if(!("Notification"in window)){toast("Notifications not supported \u2014 try Chrome","err");return;}
-  Notification.requestPermission().then(p=>{updateNotifStatus();if(p==="granted")toast("Notifications enabled \uD83D\uDD14");else toast("Permission denied","err");}).catch(()=>{});
+  try{
+    Notification.requestPermission().then(function(p){updateNotifStatus();if(p==="granted")toast("Notifications enabled \uD83D\uDD14");else toast("Permission denied","err");}).catch(function(){});
+  }catch(e){toast("Could not request permission","err");}
 }
 $("#dashNotifBtn").addEventListener("click",requestNotifFromClick);
-$("#notifAllowBtn2").addEventListener("click",requestNotifFromClick);
 function renderDashFocus(){
   try{
     const L=state.live;const card=$("#dashFocusCard");if(!card)return;
@@ -2353,13 +2403,15 @@ function renderAll(){
   },{once:true});
   $("#dashFPause").addEventListener("click",pomStartPause);
   $("#dashFReset").addEventListener("click",()=>{if(confirm("Reset focus timer?"))pomReset();});
-  $("#notifAllowBtn").addEventListener("click",()=>{
+  $("#notifAllowBtn").addEventListener("click",function(){
     if(!("Notification"in window)){toast("Notifications not supported","err");return;}
-    Notification.requestPermission().then(p=>{
-      updateNotifBanner();updateNotifStatus();
-      if(p==="granted")toast("Notifications enabled 🔔");
-      else{toast("Permission denied — enable in browser settings","err");}
-    }).catch(()=>toast("Permission request failed","err"));
+    try{
+      Notification.requestPermission().then(function(p){
+        updateNotifBanner();updateNotifStatus();
+        if(p==="granted")toast("Notifications enabled \uD83D\uDD14");
+        else toast("Permission denied \u2014 enable in browser settings","err");
+      }).catch(function(){});
+    }catch(e){toast("Could not request permission","err");}
   });
 })();
 

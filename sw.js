@@ -1,4 +1,4 @@
-const CACHE="biopulse-v2";
+const CACHE="biopulse-v3";
 const ASSETS=["./","./index.html","./manifest.json","./icon-192.png","./icon-512.png"];
 
 self.addEventListener("install",e=>{
@@ -30,3 +30,13 @@ self.addEventListener("fetch",e=>{
     })
   );
 });
+
+self.addEventListener("notificationclick",e=>{
+  e.notification.close();
+  e.waitUntil(clients.matchAll({type:"window",includeUncontrolled:true}).then(list=>{
+    for(const c of list){if(c.url.includes("index.html")&&"focus"in c)return c.focus();}
+    return clients.openWindow("./");
+  }));
+});
+
+self.addEventListener("notificationclose",e=>{});
