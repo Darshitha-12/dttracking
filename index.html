@@ -792,6 +792,30 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 
 <div class="toasts" id="toasts"></div>
 
+<!-- ========= BIG ALARM POPUP ========= -->
+<div id="alarmPopup" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
+  <div id="apPulse" style="width:130px;height:130px;border-radius:50%;display:grid;place-items:center;font-size:64px;margin-bottom:28px;animation:apPulse 1s ease-in-out infinite alternate;box-shadow:0 0 60px rgba(16,185,129,.4)"></div>
+  <div id="apKicker" style="font-size:13px;font-weight:800;letter-spacing:3px;text-transform:uppercase;margin-bottom:10px"></div>
+  <div id="apLabel" style="font-size:30px;font-weight:800;color:#fff;max-width:90vw;line-height:1.2;margin-bottom:16px"></div>
+  <div id="apClock" style="font-size:62px;font-weight:200;color:rgba(255,255,255,.6);letter-spacing:4px;margin-bottom:8px;font-variant-numeric:tabular-nums"></div>
+  <div id="apMeta" style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:32px"></div>
+  <div style="display:flex;gap:12px;width:100%;max-width:400px;margin-bottom:12px">
+    <button onclick="apDismiss()" style="flex:2;padding:18px;border:none;border-radius:14px;background:#10B981;color:#fff;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:1px">✔ DISMISS</button>
+  </div>
+  <div style="display:flex;gap:10px;width:100%;max-width:400px">
+    <button onclick="apSnooze(5)" style="flex:1;padding:14px;border:2px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.05);color:#fbbf24;font-size:14px;font-weight:700;cursor:pointer">😴 5m</button>
+    <button onclick="apSnooze(10)" style="flex:1;padding:14px;border:2px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.05);color:#fbbf24;font-size:14px;font-weight:700;cursor:pointer">😴 10m</button>
+    <button onclick="apSnooze(15)" style="flex:1;padding:14px;border:2px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.05);color:#fbbf24;font-size:14px;font-weight:700;cursor:pointer">😴 15m</button>
+  </div>
+</div>
+<style>
+@keyframes apPulse{0%{transform:scale(1);box-shadow:0 0 40px rgba(16,185,129,.4)}100%{transform:scale(1.1);box-shadow:0 0 80px rgba(16,185,129,.6)}}
+@keyframes apPulseHot{0%{transform:scale(1);box-shadow:0 0 40px rgba(244,63,94,.5)}100%{transform:scale(1.12);box-shadow:0 0 90px rgba(244,63,94,.7)}}
+#alarmPopup.hot #apPulse{animation-name:apPulseHot;box-shadow:0 0 60px rgba(244,63,94,.5)}
+#alarmPopup.hot #apKicker{color:#fb7185}
+#alarmPopup.hot button[onclick^="apDismiss"]{background:#F43F5E}
+</style>
+
 <script>
 "use strict";
 const $=s=>document.querySelector(s);
@@ -1329,10 +1353,116 @@ function triggerAlarm(alarm){
   if(!Ringing.current)processQueue();
 }
 
+/* ========= BIG ALARM POPUP ========= */
+var apAudioCtx=null,apOsc=null,apVibTimer=null,apClockTimer=null,apAlarmData=null;
+function apShow(alarm){
+  apAlarmData=alarm;
+  var high=alarm.priority==="high";
+  var p=$("#alarmPopup");
+  p.classList.toggle("hot",!!high);
+  p.style.display="flex";
+  $("#apPulse").textContent=high?"\uD83D\uDEA8":"\u23F0";
+  $("#apKicker").textContent=high?"\uD83D\uDEA8 HIGH PRIORITY ALARM":"\u23F0 STUDY ALARM";
+  $("#apKicker").style.color=high?"#fb7185":"#10B981";
+  $("#apLabel").textContent=alarm.label||"Time is up!";
+  var sub=alarm.subjectId?subj(alarm.subjectId):null;
+  $("#apMeta").innerHTML=(sub?sub.icon+" "+sub.name+" \u00B7 ":"")+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  apUpdateClock();
+  if(apClockTimer)clearInterval(apClockTimer);
+  apClockTimer=setInterval(apUpdateClock,1000);
+  apStartSound(high);
+  apStartVibrate();
+  document.title="\uD83D\uDD14 ALARM \u2014 "+(alarm.label||"BioPulse");
+  try{flashScreen(high?"rgba(244,63,94,.5)":"rgba(16,185,129,.35)");}catch(x){}
+  try{navigator.vibrate&&navigator.vibrate([800,200,800,200,1200]);}catch(x){}
+  try{if(navigator.wakeLock)navigator.wakeLock.request("screen").catch(function(){});}catch(x){}
+}
+function apUpdateClock(){
+  var now=new Date();
+  var el=$("#apClock");
+  if(el)el.textContent=pad(now.getHours())+":"+pad(now.getMinutes());
+}
+function apStartSound(high){
+  try{
+    apAudioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(apAudioCtx.state==="suspended")apAudioCtx.resume();
+    apPlayTone(high);
+    apOsc=setInterval(function(){apPlayTone(high);},3400);
+  }catch(x){}
+}
+function apPlayTone(high){
+  try{
+    if(!apAudioCtx)return;
+    var c=apAudioCtx;
+    if(high){
+      [880,1108.73,1318.51,1760].forEach(function(f,i){
+        var o=c.createOscillator(),g=c.createGain(),t=c.currentTime+i*.15;
+        o.type="square";o.frequency.setValueAtTime(f,t);
+        g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(.25,t+.015);
+        g.gain.exponentialRampToValueAtTime(.0001,t+.4);
+        o.connect(g).connect(c.destination);o.start(t);o.stop(t+.45);
+      });
+    }else{
+      [659.25,830.61,987.77,1318.51].forEach(function(f,i){
+        var o=c.createOscillator(),g=c.createGain(),t=c.currentTime+i*.17;
+        o.type="sine";o.frequency.setValueAtTime(f,t);
+        g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(.3,t+.02);
+        g.gain.exponentialRampToValueAtTime(.0001,t+1);
+        o.connect(g).connect(c.destination);o.start(t);o.stop(t+1.06);
+      });
+    }
+  }catch(x){}
+}
+function apStartVibrate(){
+  try{
+    var vibPattern=[0,600,200,600,200,1200];
+    navigator.vibrate&&navigator.vibrate(vibPattern);
+    apVibTimer=setInterval(function(){try{navigator.vibrate&&navigator.vibrate(vibPattern);}catch(x){}},3600);
+  }catch(x){}
+}
+function apStop(){
+  if(apOsc){clearInterval(apOsc);apOsc=null;}
+  if(apVibTimer){clearInterval(apVibTimer);apVibTimer=null;}
+  if(apClockTimer){clearInterval(apClockTimer);apClockTimer=null;}
+  if(apAudioCtx){try{apAudioCtx.close();}catch(x){}apAudioCtx=null;}
+  try{navigator.vibrate&&navigator.vibrate(0);}catch(x){}
+  try{speechSynthesis.cancel();}catch(x){}
+  $("#alarmPopup").style.display="none";
+  document.title="BioPulse \u00B7 Biology Stream Study OS";
+  try{if("clearAppBadge"in navigator)navigator.clearAppBadge();}catch(x){}
+}
+function apDismiss(){
+  apStop();
+  if(apAlarmData){
+    if(apAlarmData.kind==="snooze")state.alarms=state.alarms.filter(function(x){return x.id!==apAlarmData.id;});
+    if(apAlarmData.reviewTopicId){var tp=state.topics.find(function(t){return t.id===apAlarmData.reviewTopicId;});if(tp)tp.reviewsDone=(tp.reviewsDone||0)+1;}
+    DB.save();
+  }
+  Ringing.current=null;
+  try{$("#overlay").classList.remove("show");}catch(x){}
+  toast("Alarm dismissed \u2714");
+}
+function apSnooze(mins){
+  apStop();
+  if(apAlarmData){
+    var clone=Object.assign({},apAlarmData);
+    clone.id=uid();clone.kind=apAlarmData.kind==="hydration"?"hydration":"snooze";
+    clone.fireAt=Date.now()+mins*60000;clone.enabled=true;clone.snoozeCount=(apAlarmData.snoozeCount||0)+1;
+    delete clone.days;delete clone.time;
+    if(clone.kind!=="hydration")state.alarms.push(clone);
+    DB.save();
+    try{triggerAlarm(Object.assign({},clone,{_snoozeFrom:apAlarmData.id}));}catch(x){}
+    toast("Snoozed for "+mins+" minutes \uD83D\uDE34");
+  }
+  Ringing.current=null;
+  try{$("#overlay").classList.remove("show");}catch(x){}
+}
+
 function processQueue(){
   var a=Ringing.queue.shift();
   if(!a){Ringing.current=null;return;}
   Ringing.current=a;
+  try{apShow(a);}catch(e){}
   var s=a.subjectId?subj(a.subjectId):null;
   var high=a.priority==="high";
   $("#ovIcon").textContent=high?"\uD83D\uDEA8":a.kind==="hydration"?"\uD83D\uDCA7":a.kind==="reminder"?"\uD83D\uDD14":"\u23F0";
@@ -1422,6 +1552,7 @@ $("#ovActions").addEventListener("click",e=>{
 });
 
 function stopRinging(){
+  try{apStop();}catch(e){}
   clearInterval(Ringing.vibTimer);Ringing.vibTimer=null;
   clearInterval(Ringing.loopTimer);Ringing.loopTimer=null;
   if(ringAudio){try{ringAudio.pause();ringAudio.currentTime=0;if(ringAudio._url)URL.revokeObjectURL(ringAudio._url);}catch(e){}ringAudio=null;}
